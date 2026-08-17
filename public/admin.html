@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Ready Gym License Admin</title>
+
+    <link rel="stylesheet" href="/admin.css" />
+  </head>
+
+  <body>
+    <div class="admin-container">
+      <header class="admin-header">
+        <div>
+          <span class="brand-badge"> READY GYM </span>
+
+          <h1>License Management</h1>
+
+          <p>Manage your Ready Gym theme licenses.</p>
+        </div>
+
+        <div class="header-actions">
+          <button id="refreshButton" class="secondary-button">Refresh</button>
+
+          <button id="logoutButton" class="danger-button">Logout</button>
+        </div>
+      </header>
+
+      <!-- LOGIN -->
+
+      <section id="loginSection" class="card">
+        <h2>Admin Authentication</h2>
+
+        <p>Enter your admin secret.</p>
+
+        <div class="input-group">
+          <label> Admin Secret </label>
+
+          <input
+            type="password"
+            id="adminSecret"
+            placeholder="Enter admin secret"
+          />
+        </div>
+
+        <button id="loginButton" class="primary-button">Login</button>
+
+        <div id="loginMessage" class="message"></div>
+      </section>
+
+      <!-- DASHBOARD -->
+
+      <section id="dashboardSection" hidden>
+        <!-- STATS -->
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span> Total Licenses </span>
+
+            <strong id="totalLicenses"> 0 </strong>
+          </div>
+
+          <div class="stat-card">
+            <span> Active </span>
+
+            <strong id="activeLicenses"> 0 </strong>
+          </div>
+
+          <div class="stat-card">
+            <span> Inactive </span>
+
+            <strong id="inactiveLicenses"> 0 </strong>
+          </div>
+
+          <div class="stat-card">
+            <span> Suspended </span>
+
+            <strong id="suspendedLicenses"> 0 </strong>
+          </div>
+
+          <div class="stat-card">
+            <span>
+                Revoked
+            </span>
+
+            <strong id="revokedLicenses">
+                0
+            </strong>
+        </div>
+        </div>
+
+        <!-- CREATE LICENSE -->
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Create License</h2>
+
+              <p>Generate a new Ready Gym license.</p>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="input-group">
+              <label> Plan </label>
+
+              <select id="licensePlan">
+                <option value="lifetime">Lifetime</option>
+
+                <option value="yearly">Yearly</option>
+
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+
+            <div class="input-group">
+              <label> Theme Name </label>
+
+              <input type="text" id="themeName" value="Ready Gym" />
+            </div>
+
+            <div class="input-group">
+              <label> Expiration Date </label>
+
+              <input type="date" id="licenseExpiresAt" />
+
+              <small> Leave empty for lifetime license. </small>
+            </div>
+          </div>
+
+          <button id="createLicenseButton" class="primary-button">
+            Create License
+          </button>
+
+          <div id="createMessage" class="message"></div>
+        </div>
+
+        <!-- LICENSE TABLE -->
+
+        <div class="card">
+          <div class="card-header">
+            <div class="license-filters">
+              <div class="input-group">
+                <label> Search </label>
+
+                <input
+                  type="text"
+                  id="licenseSearch"
+                  placeholder="Search license or store..."
+                />
+              </div>
+
+              <div class="input-group">
+                <label> Status </label>
+
+                <select id="licenseStatusFilter">
+                  <option value="all">All</option>
+
+                  <option value="active">Active</option>
+
+                  <option value="inactive">Inactive</option>
+
+                  <option value="suspended">Suspended</option>
+
+                  <option value="expired">Expired</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <h2>Licenses</h2>
+
+              <p>All generated licenses.</p>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>License Key</th>
+
+                  <th>Store</th>
+
+                  <th>Plan</th>
+
+                  <th>Status</th>
+
+                  <th>Created</th>
+
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody id="licenseTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- LICENSE DETAILS MODAL -->
+
+    <div id="licenseModal" class="modal" hidden>
+      <div class="modal-overlay"></div>
+
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <span class="brand-badge"> READY GYM </span>
+
+            <h2>License Details</h2>
+          </div>
+
+          <button type="button" id="closeLicenseModal" class="modal-close">
+            ×
+          </button>
+        </div>
+
+        <div id="licenseModalMessage" class="message"></div>
+
+        <div class="license-details-grid">
+          <!-- License Key -->
+
+          <div class="detail-item">
+            <label> License Key </label>
+
+            <div class="detail-value-row">
+              <input type="text" id="detailLicenseKey" readonly />
+
+              <button
+                type="button"
+                id="modalCopyButton"
+                class="small-button copy-button"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+
+          <!-- Store -->
+
+          <div class="detail-item">
+            <label> Shopify Store </label>
+
+            <input type="text" id="detailShopDomain" readonly />
+          </div>
+
+          <!-- Theme -->
+
+          <div class="detail-item">
+            <label> Theme Name </label>
+
+            <input type="text" id="detailThemeName" />
+          </div>
+
+          <!-- Plan -->
+
+          <div class="detail-item">
+            <label> Plan </label>
+
+            <select id="detailPlan">
+              <option value="lifetime">Lifetime</option>
+
+              <option value="yearly">Yearly</option>
+
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+
+          <!-- Status -->
+
+          <div class="detail-item">
+            <label> Status </label>
+
+            <input type="text" id="detailStatus" readonly />
+          </div>
+
+          <!-- Expiration -->
+
+          <div class="detail-item">
+            <label> Expiration Date </label>
+
+            <input type="date" id="detailExpiresAt" />
+          </div>
+
+          <!-- Created -->
+
+          <div class="detail-item">
+            <label> Created </label>
+
+            <input type="text" id="detailCreatedAt" readonly />
+          </div>
+
+          <!-- Activated -->
+
+          <div class="detail-item">
+            <label> Activated </label>
+
+            <input type="text" id="detailActivatedAt" readonly />
+          </div>
+
+          <!-- Last Checked -->
+
+          <div class="detail-item">
+            <label> Last Checked </label>
+
+            <input type="text" id="detailLastCheckedAt" readonly />
+          </div>
+
+          <!-- Token Version -->
+
+          <div class="detail-item">
+            <label> Token Version </label>
+
+            <input type="text" id="detailTokenVersion" readonly />
+          </div>
+
+          <div class="detail-item" id="renewalDateGroup">
+        
+
+            <label>
+                Renew Until
+            </label>
+
+            <input
+                type="date"
+                id="renewalExpiresAt"
+            >
+
+            <small>
+                Set the new expiration date for this license.
+            </small>
+
+        </div>
+        </div>
+
+        <div class="modal-footer">
+
+            <button
+                type="button"
+                id="cancelLicenseModal"
+                class="secondary-button"
+            >
+                Cancel
+            </button>
+
+            <div class="renew-actions">
+
+            <button
+                type="button"
+                id="renewMonthButton"
+                class="renew-button"
+            >
+                Renew 1 Month
+            </button>
+
+            <button
+                type="button"
+                id="renewYearButton"
+                class="renew-button"
+            >
+                Renew 1 Year
+            </button>
+
+            <button
+                type="button"
+                id="renewLicenseButton"
+                class="renew-custom-button"
+            >
+                Custom Date
+            </button>
+
+        </div>
+
+            <button
+                type="button"
+                id="saveLicenseButton"
+                class="primary-button"
+            >
+                Save Changes
+            </button>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="/admin.js"></script>
+  </body>
+</html>
