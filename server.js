@@ -96,7 +96,7 @@ mongoose
         );
 
         app.listen(
-            PORT,
+            PORT, "0.0.0.0",
             () => {
                 console.log(
                     `License server running on port ${PORT}`
