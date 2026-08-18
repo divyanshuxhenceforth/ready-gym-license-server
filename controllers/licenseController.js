@@ -1430,35 +1430,75 @@ exports.publicCheckLicense = async (req, res) => {
             .trim()
             .toLowerCase()
             .replace(/^https?:\/\//, "")
-            .replace(/\/$/, "");
+            .replace(/\/+$/, "");
+
+        console.log(
+            "PUBLIC LICENSE CHECK:",
+            normalizedShop
+        );
 
         const license = await License.findOne({
             shopDomain: normalizedShop
         });
 
         if (!license) {
+
+            console.log(
+                "NO LICENSE FOUND FOR:",
+                normalizedShop
+            );
+
             return res.json({
                 success: true,
                 valid: false
             });
         }
+
+        console.log(
+            "LICENSE FOUND:",
+            license.licenseKey,
+            license.status,
+            license.shopDomain
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | CHECK EXPIRY
+        |--------------------------------------------------------------------------
+        */
 
         const isExpired =
             await checkLicenseExpiry(license);
 
         if (isExpired) {
+
             return res.json({
                 success: true,
                 valid: false
             });
         }
 
-        if (license.status !== "active") {
+        /*
+        |--------------------------------------------------------------------------
+        | CHECK STATUS
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            license.status !== "active"
+        ) {
+
             return res.json({
                 success: true,
                 valid: false
             });
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | LICENSE VALID
+        |--------------------------------------------------------------------------
+        */
 
         return res.json({
             success: true,
@@ -1468,9 +1508,10 @@ exports.publicCheckLicense = async (req, res) => {
     } catch (error) {
 
         console.error(
-            "Public license check error:",
-            error
+            "Public license check error:"
         );
+
+        console.error(error);
 
         return res.status(500).json({
             success: false,
