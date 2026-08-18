@@ -456,12 +456,21 @@ function renderStatistics(
         ).length;
 
     const suspended =
+    licenses.filter(
+        (license) =>
+            license.status ===
+            "suspended"
+    ).length;
+
+
+    const expired =
         licenses.filter(
             (license) =>
                 license.status ===
-                "suspended"
+                "expired"
         ).length;
-
+    
+    
     const revoked =
         licenses.filter(
             (license) =>
@@ -488,6 +497,11 @@ function renderStatistics(
         "suspendedLicenses"
     ).textContent =
         suspended;
+
+    document.getElementById(
+        "expiredLicenses"
+    ).textContent =
+        expired;
 
     document.getElementById(
         "revokedLicenses"
