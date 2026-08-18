@@ -4,15 +4,16 @@ const {
     createLicense,
     activateLicense,
     checkLicense,
+    publicCheckLicense,
     deactivateLicense,
+    refreshLicense,
     getLicenses,
     suspendLicense,
     unsuspendLicense,
     updateLicense,
     adminActivateLicense,
     adminDeactivateLicense,
-    revokeLicense,
-    refreshLicense
+    revokeLicense
 } = require("../controllers/licenseController");
 
 const adminAuth =
