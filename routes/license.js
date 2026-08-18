@@ -110,5 +110,10 @@ router.post(
     deactivateLicense
 );
 
+router.post(
+    "/integrity-check",
+    publicIntegrityCheck
+);
+
 
 module.exports = router;
