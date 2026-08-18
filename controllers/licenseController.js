@@ -1289,15 +1289,10 @@ exports.adminDeactivateLicense = async (req, res) => {
 };
 
 
-exports.adminActivateLicense = async (
-    req,
-    res
-) => {
-
+exports.adminActivateLicense = async (req, res) => {
     try {
 
-        const { id } =
-            req.params;
+        const { id } = req.params;
 
         const license =
             await License.findById(id);
@@ -1309,83 +1304,77 @@ exports.adminActivateLicense = async (
                 message:
                     "License not found"
             });
-
         }
+
 
         /*
         |--------------------------------------------------------------------------
-        | Revoked licenses cannot be reactivated
+        | REVOKED
         |--------------------------------------------------------------------------
         */
 
         if (
-            license.status === "revoked"
+            license.status ===
+            "revoked"
         ) {
 
             return res.status(403).json({
                 success: false,
                 message:
-                    "Revoked licenses cannot be activated"
+                    "Revoked licenses cannot be activated."
             });
-
         }
+
 
         /*
         |--------------------------------------------------------------------------
-        | Expiration
+        | ALREADY ACTIVE
         |--------------------------------------------------------------------------
         */
 
         if (
-            license.expiresAt &&
-            new Date() >=
-            new Date(license.expiresAt)
+            license.status ===
+            "active"
         ) {
 
-            license.status =
-                "expired";
-
-            license.tokenVersion =
-                Number(
-                    license.tokenVersion || 0
-                ) + 1;
-
-            await license.save();
-
-            return res.status(403).json({
+            return res.status(400).json({
                 success: false,
                 message:
-                    "Cannot activate an expired license"
+                    "License is already active."
             });
         }
 
-        license.status =
-            "active";
 
-        license.tokenVersion =
-            Number(
-                license.tokenVersion || 0
-            ) + 1;
+        /*
+        |--------------------------------------------------------------------------
+        | STORE ACTIVATION REQUIRED
+        |--------------------------------------------------------------------------
+        |
+        | Admin cannot activate a license manually.
+        |
+        | The license must be activated from the Shopify
+        | store using the license activation page.
+        |
+        |--------------------------------------------------------------------------
+        */
 
-        await license.save();
-
-        return res.json({
-            success: true,
+        return res.status(403).json({
+            success: false,
             message:
-                "License activated successfully"
+                "This license can only be activated from the Shopify store."
         });
+
 
     } catch (error) {
 
         console.error(
-            "Admin activate error:",
+            "Admin activate license error:",
             error
         );
 
         return res.status(500).json({
             success: false,
             message:
-                error.message ||
                 "Failed to activate license"
         });
     }
