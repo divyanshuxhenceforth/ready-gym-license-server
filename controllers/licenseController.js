@@ -1929,3 +1929,126 @@ exports.publicCheckLicense = async (req, res) => {
 
     }
 };
+
+
+exports.publicIntegrityCheck = async (req, res) => {
+    try {
+
+        const {
+            shopDomain,
+            installationId,
+            components
+        } = req.body;
+
+        if (
+            !shopDomain ||
+            !installationId ||
+            !components
+        ) {
+            return res.status(400).json({
+                success: false,
+                valid: false,
+                message:
+                    "Integrity information is required."
+            });
+        }
+
+        const normalizedShop =
+            shopDomain
+                .trim()
+                .toLowerCase()
+                .replace(
+                    /^https?:\/\//,
+                    ""
+                )
+                .replace(
+                    /\/+$/,
+                    ""
+                );
+
+        const license =
+            await License.findOne({
+                shopDomain:
+                    normalizedShop,
+
+                installationId:
+                    installationId,
+
+                status:
+                    "active"
+            });
+
+        if (!license) {
+            return res.json({
+                success: true,
+                valid: false
+            });
+        }
+
+        const expired =
+            await checkLicenseExpiry(
+                license
+            );
+
+        if (expired) {
+            return res.json({
+                success: true,
+                valid: false
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Required theme components
+        |--------------------------------------------------------------------------
+        */
+
+        const requiredComponents = [
+            "rg-license-js",
+            "rg-license-lock",
+            "rg-license-marker"
+        ];
+
+        const missingComponents =
+            requiredComponents.filter(
+                component =>
+                    components[component] !== true
+            );
+
+        if (
+            missingComponents.length > 0
+        ) {
+
+            return res.json({
+                success: true,
+                valid: false,
+                reason:
+                    "theme_integrity_failed",
+                missing:
+                    missingComponents
+            });
+        }
+
+        license.lastCheckedAt =
+            new Date();
+
+        await license.save();
+
+        return res.json({
+            success: true,
+            valid: true
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Integrity check error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            valid: false
+        });
+    }
+};
