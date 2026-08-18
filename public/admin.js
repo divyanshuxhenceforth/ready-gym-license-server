@@ -1218,14 +1218,21 @@ function viewLicense(
     | Lifetime license handling
     |--------------------------------------------------------------------------
     */
-
+    
     toggleExpirationField();
-
+    
+    /*
+    |--------------------------------------------------------------------------
+    | Revoked license action handling
+    |--------------------------------------------------------------------------
+    */
+    
+    updateLicenseModalActions(
+        license.status
+    );
+    
     licenseModal.hidden =
         false;
-
-    document.body.style.overflow =
-        "hidden";
 
     renewalExpiresAt.value =
         formatDateForInput(
@@ -1369,10 +1376,36 @@ function toggleExpirationField() {
             "detailExpiresAt"
         );
 
-    if (
+    const isLifetime =
         detailPlan.value ===
-        "lifetime"
-    ) {
+        "lifetime";
+
+    const license =
+        allLicenses.find(
+            (item) =>
+                String(
+                    item._id
+                ) ===
+                String(
+                    selectedLicenseId
+                )
+        );
+
+    const isRevoked =
+        license &&
+        String(
+            license.status || ""
+        ).toLowerCase() ===
+        "revoked";
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Lifetime
+    |--------------------------------------------------------------------------
+    */
+
+    if (isLifetime) {
 
         expiresInput.value =
             "";
@@ -1386,18 +1419,59 @@ function toggleExpirationField() {
         renewLicenseButton.style.display =
             "none";
 
-    } else {
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Normal plan
+    |--------------------------------------------------------------------------
+    */
+
+    else {
 
         expiresInput.disabled =
             false;
 
-        renewalDateGroup.style.display =
-            "flex";
+        /*
+        |--------------------------------------------------------------------------
+        | Do not show renewal controls for revoked license
+        |--------------------------------------------------------------------------
+        */
 
-        renewLicenseButton.style.display =
-            "inline-block";
+        if (isRevoked) {
+
+            renewalDateGroup.style.display =
+                "none";
+
+            renewLicenseButton.style.display =
+                "none";
+
+        } else {
+
+            renewalDateGroup.style.display =
+                "flex";
+
+            renewLicenseButton.style.display =
+                "inline-block";
+
+        }
 
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Final revoked check
+    |--------------------------------------------------------------------------
+    |
+    | This is important because `hidden` should always win.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    updateLicenseModalActions(
+        license?.status
+    );
 }
 
 
@@ -1931,4 +2005,95 @@ renewYearButton.addEventListener(
     }
 );
 
+
+
+function updateLicenseModalActions(status) {
+
+    const isRevoked =
+        String(status || "").toLowerCase() === "revoked";
+
+    const renewMonthButton =
+        document.getElementById(
+            "renewMonthButton"
+        );
+
+    const renewYearButton =
+        document.getElementById(
+            "renewYearButton"
+        );
+
+    const renewLicenseButton =
+        document.getElementById(
+            "renewLicenseButton"
+        );
+
+    const saveLicenseButton =
+        document.getElementById(
+            "saveLicenseButton"
+        );
+
+    const renewalDateGroup =
+        document.getElementById(
+            "renewalDateGroup"
+        );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | REVOKED
+    |--------------------------------------------------------------------------
+    */
+
+    if (isRevoked) {
+
+        if (renewMonthButton) {
+            renewMonthButton.hidden = true;
+        }
+
+        if (renewYearButton) {
+            renewYearButton.hidden = true;
+        }
+
+        if (renewLicenseButton) {
+            renewLicenseButton.hidden = true;
+        }
+
+        if (saveLicenseButton) {
+            saveLicenseButton.hidden = true;
+        }
+
+        if (renewalDateGroup) {
+            renewalDateGroup.hidden = true;
+        }
+
+        return;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | NORMAL LICENSE
+    |--------------------------------------------------------------------------
+    */
+
+    if (renewMonthButton) {
+        renewMonthButton.hidden = false;
+    }
+
+    if (renewYearButton) {
+        renewYearButton.hidden = false;
+    }
+
+    if (renewLicenseButton) {
+        renewLicenseButton.hidden = false;
+    }
+
+    if (saveLicenseButton) {
+        saveLicenseButton.hidden = false;
+    }
+
+    if (renewalDateGroup) {
+        renewalDateGroup.hidden = false;
+    }
+}
 
