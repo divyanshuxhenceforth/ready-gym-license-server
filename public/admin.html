@@ -122,11 +122,17 @@
             </div>
 
             <div class="input-group">
-              <label> Expiration Date </label>
-
-              <input type="date" id="licenseExpiresAt" />
-
-              <small> Leave empty for lifetime license. </small>
+                <label> Expiration </label>
+            
+                <div class="auto-expiration">
+                    Automatically calculated after activation
+                </div>
+            
+                <small>
+                    Monthly expires 1 month after activation.
+                    Yearly expires 1 year after activation.
+                    Lifetime has no expiration.
+                </small>
             </div>
           </div>
 
