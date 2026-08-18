@@ -1039,29 +1039,29 @@ async function copyLicenseKey(
 |--------------------------------------------------------------------------
 */
 
-async function activateLicense(
-    id
-) {
+// async function activateLicense(
+//     id
+// ) {
 
-    try {
+//     try {
 
-        await apiRequest(
-            `/api/license/admin/${id}/activate`,
-            {
-                method: "PATCH",
-            }
-        );
+//         await apiRequest(
+//             `/api/license/admin/${id}/activate`,
+//             {
+//                 method: "PATCH",
+//             }
+//         );
 
-        await loadLicenses();
+//         await loadLicenses();
 
-    } catch (error) {
+//     } catch (error) {
 
-        alert(
-            error.message
-        );
+//         alert(
+//             error.message
+//         );
 
-    }
-}
+//     }
+// }
 
 
 /*
