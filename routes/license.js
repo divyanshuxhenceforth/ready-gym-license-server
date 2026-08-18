@@ -101,6 +101,11 @@ router.post(
 );
 
 router.post(
+    "/public-check",
+    publicCheckLicense
+);
+
+router.post(
     "/deactivate",
     deactivateLicense
 );
