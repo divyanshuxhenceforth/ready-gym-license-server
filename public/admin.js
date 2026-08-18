@@ -1359,3 +1359,104 @@ renewLicenseButton.addEventListener(
         );
     }
 );
+
+
+function updateAuthUI() {
+
+    const token =
+        sessionStorage.getItem(
+            "readygym_admin_token"
+        );
+
+    const loginSection =
+        document.getElementById(
+            "loginSection"
+        );
+
+    const dashboardSection =
+        document.getElementById(
+            "dashboardSection"
+        );
+
+    const logoutButton =
+        document.getElementById(
+            "logoutButton"
+        );
+
+    updateAuthUI();
+
+    const refreshButton =
+        document.getElementById(
+            "refreshButton"
+        );
+
+    if (token) {
+
+        /*
+        |--------------------------------------------------------------------------
+        | LOGGED IN
+        |--------------------------------------------------------------------------
+        */
+
+        if (loginSection) {
+            loginSection.hidden = true;
+        }
+
+        if (dashboardSection) {
+            dashboardSection.hidden = false;
+        }
+
+        if (logoutButton) {
+            logoutButton.hidden = false;
+        }
+
+        if (refreshButton) {
+            refreshButton.hidden = false;
+        }
+
+    } else {
+
+        /*
+        |--------------------------------------------------------------------------
+        | LOGGED OUT
+        |--------------------------------------------------------------------------
+        */
+
+        if (loginSection) {
+            loginSection.hidden = false;
+        }
+
+        if (dashboardSection) {
+            dashboardSection.hidden = true;
+        }
+
+        if (logoutButton) {
+            logoutButton.hidden = true;
+        }
+
+        if (refreshButton) {
+            refreshButton.hidden = true;
+        }
+    }
+}
+
+
+function logout() {
+
+    adminToken = "";
+
+    sessionStorage.removeItem(
+        "readygym_admin_token"
+    );
+
+    dashboardSection.hidden = true;
+
+    loginSection.hidden = false;
+
+    logoutButton.hidden = true;
+
+    refreshButton.hidden = true;
+
+    loginMessage.textContent =
+        "Please login again.";
+}
