@@ -1544,35 +1544,59 @@ exports.refreshLicense = async (req, res) => {
 exports.publicCheckLicense = async (req, res) => {
     try {
 
-        const { shopDomain } = req.body;
+        const {
+            shopDomain
+        } = req.body;
 
         if (!shopDomain) {
             return res.status(400).json({
                 success: false,
                 valid: false,
-                message: "Shop domain is required"
+                message:
+                    "Shop domain is required"
             });
         }
 
-        const normalizedShop = shopDomain
-            .trim()
-            .toLowerCase()
-            .replace(/^https?:\/\//, "")
-            .replace(/\/+$/, "");
+        const normalizedShop =
+            shopDomain
+                .trim()
+                .toLowerCase()
+                .replace(/^https?:\/\//, "")
+                .replace(/\/+$/, "");
 
         console.log(
             "PUBLIC LICENSE CHECK:",
             normalizedShop
         );
 
-        const license = await License.findOne({
-            shopDomain: normalizedShop
-        });
+        /*
+        |--------------------------------------------------------------------------
+        | FIND ACTIVE LICENSE FOR THIS SHOP
+        |--------------------------------------------------------------------------
+        */
+
+        const license =
+            await License.findOne({
+                shopDomain:
+                    normalizedShop,
+
+                status:
+                    "active"
+            }).sort({
+                createdAt:
+                    -1
+            });
+
+        /*
+        |--------------------------------------------------------------------------
+        | NO ACTIVE LICENSE
+        |--------------------------------------------------------------------------
+        */
 
         if (!license) {
 
             console.log(
-                "NO LICENSE FOUND FOR:",
+                "NO ACTIVE LICENSE FOUND FOR:",
                 normalizedShop
             );
 
@@ -1583,7 +1607,7 @@ exports.publicCheckLicense = async (req, res) => {
         }
 
         console.log(
-            "LICENSE FOUND:",
+            "ACTIVE LICENSE FOUND:",
             license.licenseKey,
             license.status,
             license.shopDomain
@@ -1596,9 +1620,16 @@ exports.publicCheckLicense = async (req, res) => {
         */
 
         const isExpired =
-            await checkLicenseExpiry(license);
+            await checkLicenseExpiry(
+                license
+            );
 
         if (isExpired) {
+
+            console.log(
+                "LICENSE EXPIRED:",
+                license.licenseKey
+            );
 
             return res.json({
                 success: true,
@@ -1608,12 +1639,13 @@ exports.publicCheckLicense = async (req, res) => {
 
         /*
         |--------------------------------------------------------------------------
-        | CHECK STATUS
+        | FINAL STATUS CHECK
         |--------------------------------------------------------------------------
         */
 
         if (
-            license.status !== "active"
+            license.status !==
+            "active"
         ) {
 
             return res.json({
@@ -1629,8 +1661,11 @@ exports.publicCheckLicense = async (req, res) => {
         */
 
         return res.json({
+
             success: true,
+
             valid: true
+
         });
 
     } catch (error) {
@@ -1642,10 +1677,15 @@ exports.publicCheckLicense = async (req, res) => {
         console.error(error);
 
         return res.status(500).json({
+
             success: false,
+
             valid: false,
+
             message:
                 "License verification failed"
+
         });
+
     }
 };
