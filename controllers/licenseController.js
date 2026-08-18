@@ -4,6 +4,7 @@ const checkLicenseExpiry =
 const jwt = require("jsonwebtoken");
 const License = require("../models/License");
 const generateLicenseKey = require("../utils/generateLicenseKey");
+const crypto = require("crypto");
 
 
 exports.checkLicense = async (req, res) => {
@@ -278,6 +279,7 @@ exports.deactivateLicense = async (req, res) => {
 
     // Release the license
     license.shopDomain = null;
+    license.installationId = null;
     license.status = "inactive";
     license.tokenVersion += 1;
     license.lastCheckedAt = new Date();
@@ -745,8 +747,17 @@ exports.activateLicense = async (req, res) => {
         |--------------------------------------------------------------------------
         */
 
+        const installationId =
+        `INST-${crypto
+            .randomBytes(8)
+            .toString("hex")
+            .toUpperCase()}`;
+
         license.shopDomain =
             normalizedShop;
+        
+        license.installationId =
+            installationId;
 
         license.status =
             "active";
@@ -821,22 +832,23 @@ exports.activateLicense = async (req, res) => {
                 "License activated successfully",
 
             license: {
-
                 themeName:
                     license.themeName,
-
+            
                 plan:
                     license.plan,
-
+            
                 shopDomain:
                     license.shopDomain,
-
+            
+                installationId:
+                    license.installationId,
+            
                 activatedAt:
                     license.activatedAt,
-
+            
                 expiresAt:
                     license.expiresAt
-
             },
 
             token
@@ -1234,6 +1246,8 @@ exports.adminDeactivateLicense = async (req, res) => {
         */
 
         license.shopDomain = null;
+        license.installationId = null;
+
 
         /*
         |--------------------------------------------------------------------------
@@ -1417,6 +1431,8 @@ exports.revokeLicense = async (req, res) => {
         */
 
         license.shopDomain = null;
+
+        license.installationId = null;
 
         /*
         |--------------------------------------------------------------------------
