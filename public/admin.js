@@ -1,124 +1,201 @@
-```javascript
 "use strict";
 
-/*
-|--------------------------------------------------------------------------
-| READY GYM LICENSE ADMIN
-|--------------------------------------------------------------------------
-| Authentication:
-| - Uses sessionStorage only
-| - Logout hidden when logged out
-| - No localStorage/sessionStorage mixing
-|
-| Date handling:
-| - License expiry is controlled by the server/database
-| - Browser local date is NOT used to determine license validity
-|--------------------------------------------------------------------------
-*/
-
 let adminToken = "";
+
+const loginSection =
+    document.getElementById(
+        "loginSection"
+    );
+
+const dashboardSection =
+    document.getElementById(
+        "dashboardSection"
+    );
+
+const adminSecretInput =
+    document.getElementById(
+        "adminSecret"
+    );
+
+const loginButton =
+    document.getElementById(
+        "loginButton"
+    );
+
+const loginMessage =
+    document.getElementById(
+        "loginMessage"
+    );
+
+const refreshButton =
+    document.getElementById(
+        "refreshButton"
+    );
+
+const logoutButton =
+    document.getElementById(
+        "logoutButton"
+    );
+
+const createLicenseButton =
+    document.getElementById(
+        "createLicenseButton"
+    );
+
+const createMessage =
+    document.getElementById(
+        "createMessage"
+    );
+
+const licenseTableBody =
+    document.getElementById(
+        "licenseTableBody"
+    );
+
+const licenseSearch =
+    document.getElementById(
+        "licenseSearch"
+    );
+
+const licenseStatusFilter =
+    document.getElementById(
+        "licenseStatusFilter"
+    );
+
+const licenseModal =
+    document.getElementById(
+        "licenseModal"
+    );
+
+const closeLicenseModal =
+    document.getElementById(
+        "closeLicenseModal"
+    );
+
+const cancelLicenseModal =
+    document.getElementById(
+        "cancelLicenseModal"
+    );
+
+const saveLicenseButton =
+    document.getElementById(
+        "saveLicenseButton"
+    );
+
+const modalCopyButton =
+    document.getElementById(
+        "modalCopyButton"
+    );
+
+const licenseModalMessage =
+    document.getElementById(
+        "licenseModalMessage"
+    );
+
+const renewMonthButton =
+    document.getElementById(
+        "renewMonthButton"
+    );
+
+const renewYearButton =
+    document.getElementById(
+        "renewYearButton"
+    );
+
+const renewLicenseButton =
+    document.getElementById(
+        "renewLicenseButton"
+    );
+
+const renewalExpiresAt =
+    document.getElementById(
+        "renewalExpiresAt"
+    );
+
+const renewalDateGroup =
+    document.getElementById(
+        "renewalDateGroup"
+    );
+
+const detailPlan =
+    document.getElementById(
+        "detailPlan"
+    );
+
 let selectedLicenseId = null;
+
 let allLicenses = [];
 
 
 /*
 |--------------------------------------------------------------------------
-| DOM ELEMENTS
+| AUTH UI
 |--------------------------------------------------------------------------
 */
 
-const loginSection =
-    document.getElementById("loginSection");
+function updateAuthUI() {
 
-const dashboardSection =
-    document.getElementById("dashboardSection");
+    const token =
+        sessionStorage.getItem(
+            "readygym_admin_token"
+        );
 
-const adminSecretInput =
-    document.getElementById("adminSecret");
+    /*
+    |--------------------------------------------------------------------------
+    | LOGGED IN
+    |--------------------------------------------------------------------------
+    */
 
-const loginButton =
-    document.getElementById("loginButton");
+    if (token) {
 
-const loginMessage =
-    document.getElementById("loginMessage");
+        if (loginSection) {
+            loginSection.hidden = true;
+        }
 
-const refreshButton =
-    document.getElementById("refreshButton");
+        if (dashboardSection) {
+            dashboardSection.hidden = false;
+        }
 
-const createLicenseButton =
-    document.getElementById("createLicenseButton");
+        if (logoutButton) {
+            logoutButton.hidden = false;
+        }
 
-const createMessage =
-    document.getElementById("createMessage");
-
-const licenseTableBody =
-    document.getElementById("licenseTableBody");
-
-const licenseSearch =
-    document.getElementById("licenseSearch");
-
-const licenseStatusFilter =
-    document.getElementById("licenseStatusFilter");
-
-const logoutButton =
-    document.getElementById("logoutButton");
-
-const licenseModal =
-    document.getElementById("licenseModal");
-
-const closeLicenseModal =
-    document.getElementById("closeLicenseModal");
-
-const cancelLicenseModal =
-    document.getElementById("cancelLicenseModal");
-
-const saveLicenseButton =
-    document.getElementById("saveLicenseButton");
-
-const modalCopyButton =
-    document.getElementById("modalCopyButton");
-
-const licenseModalMessage =
-    document.getElementById("licenseModalMessage");
-
-const renewMonthButton =
-    document.getElementById("renewMonthButton");
-
-const renewYearButton =
-    document.getElementById("renewYearButton");
-
-const renewLicenseButton =
-    document.getElementById("renewLicenseButton");
-
-const renewalExpiresAt =
-    document.getElementById("renewalExpiresAt");
-
-const renewalDateGroup =
-    document.getElementById("renewalDateGroup");
-
-const detailPlan =
-    document.getElementById("detailPlan");
-
-
-/*
-|--------------------------------------------------------------------------
-| INITIAL AUTH CHECK
-|--------------------------------------------------------------------------
-*/
-
-document.addEventListener(
-    "DOMContentLoaded",
-    function () {
-
-        updateAuthUI();
+        if (refreshButton) {
+            refreshButton.hidden = false;
+        }
 
     }
-);
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOGGED OUT
+    |--------------------------------------------------------------------------
+    */
+
+    else {
+
+        if (loginSection) {
+            loginSection.hidden = false;
+        }
+
+        if (dashboardSection) {
+            dashboardSection.hidden = true;
+        }
+
+        if (logoutButton) {
+            logoutButton.hidden = true;
+        }
+
+        if (refreshButton) {
+            refreshButton.hidden = true;
+        }
+    }
+}
 
 
 /*
 |--------------------------------------------------------------------------
-| RESTORE SESSION
+| RESTORE ADMIN SESSION
 |--------------------------------------------------------------------------
 */
 
@@ -134,13 +211,15 @@ if (savedAdminToken) {
 
     updateAuthUI();
 
-    loadLicenses().catch(
-        function () {
-
+    loadLicenses()
+        .catch(() => {
             logout();
+        });
 
-        }
-    );
+} else {
+
+    updateAuthUI();
+
 }
 
 
@@ -160,10 +239,9 @@ async function apiRequest(
         "Content-Type":
             "application/json",
 
-        ...(options.headers || {})
+        ...(options.headers || {}),
 
     };
-
 
     if (adminToken) {
 
@@ -172,34 +250,21 @@ async function apiRequest(
 
     }
 
-
     const response =
         await fetch(
             url,
             {
                 ...options,
-                headers
+                headers,
             }
         );
 
-
-    let result = {};
-
-    try {
-
-        result =
-            await response.json();
-
-    } catch (error) {
-
-        result = {};
-
-    }
-
+    const result =
+        await response.json();
 
     /*
     |--------------------------------------------------------------------------
-    | Unauthorized
+    | ADMIN SESSION EXPIRED
     |--------------------------------------------------------------------------
     */
 
@@ -216,7 +281,6 @@ async function apiRequest(
 
     }
 
-
     if (!response.ok) {
 
         throw new Error(
@@ -225,7 +289,6 @@ async function apiRequest(
         );
 
     }
-
 
     return result;
 }
@@ -237,308 +300,108 @@ async function apiRequest(
 |--------------------------------------------------------------------------
 */
 
-if (loginButton) {
+loginButton.addEventListener(
+    "click",
+    async function () {
 
-    loginButton.addEventListener(
-        "click",
-        async function () {
+        const secret =
+            adminSecretInput.value.trim();
 
-            const secret =
-                adminSecretInput.value.trim();
-
-
-            if (!secret) {
-
-                loginMessage.textContent =
-                    "Please enter admin secret.";
-
-                return;
-
-            }
-
-
-            loginButton.disabled =
-                true;
+        if (!secret) {
 
             loginMessage.textContent =
-                "Logging in...";
+                "Please enter admin secret.";
 
+            return;
+        }
 
-            try {
+        loginButton.disabled =
+            true;
 
-                const response =
-                    await fetch(
-                        "/api/admin/login",
-                        {
-                            method:
-                                "POST",
+        loginMessage.textContent =
+            "Logging in...";
 
-                            headers: {
-                                "Content-Type":
-                                    "application/json"
-                            },
+        try {
 
-                            body:
-                                JSON.stringify({
-                                    secret
-                                })
-                        }
-                    );
+            const response =
+                await fetch(
+                    "/api/admin/login",
+                    {
+                        method: "POST",
 
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                        },
 
-                const result =
-                    await response.json();
-
-
-                if (
-                    !response.ok ||
-                    !result.success
-                ) {
-
-                    throw new Error(
-                        result.message ||
-                        "Login failed"
-                    );
-
-                }
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | Save JWT
-                |--------------------------------------------------------------------------
-                */
-
-                adminToken =
-                    result.token;
-
-
-                sessionStorage.setItem(
-                    "readygym_admin_token",
-                    adminToken
+                        body:
+                            JSON.stringify({
+                                secret,
+                            }),
+                    }
                 );
 
+            const result =
+                await response.json();
 
-                adminSecretInput.value =
-                    "";
+            if (
+                !response.ok ||
+                !result.success
+            ) {
 
-
-                loginMessage.textContent =
-                    "";
-
-
-                updateAuthUI();
-
-
-                await loadLicenses();
-
-
-            } catch (error) {
-
-                adminToken =
-                    "";
-
-                sessionStorage.removeItem(
-                    "readygym_admin_token"
+                throw new Error(
+                    result.message ||
+                    "Login failed"
                 );
-
-
-                updateAuthUI();
-
-
-                loginMessage.textContent =
-                    error.message;
-
-
-            } finally {
-
-                loginButton.disabled =
-                    false;
 
             }
 
-        }
-    );
+            adminToken =
+                result.token;
 
-}
+            /*
+            |--------------------------------------------------------------------------
+            | STORE ADMIN JWT
+            |--------------------------------------------------------------------------
+            */
 
+            sessionStorage.setItem(
+                "readygym_admin_token",
+                adminToken
+            );
 
-/*
-|--------------------------------------------------------------------------
-| AUTH UI
-|--------------------------------------------------------------------------
-*/
+            adminSecretInput.value =
+                "";
 
-function updateAuthUI() {
+            /*
+            |--------------------------------------------------------------------------
+            | UPDATE AUTH UI
+            |--------------------------------------------------------------------------
+            */
 
-    const token =
-        sessionStorage.getItem(
-            "readygym_admin_token"
-        );
+            updateAuthUI();
 
+            await loadLicenses();
 
-    /*
-    |--------------------------------------------------------------------------
-    | LOGGED IN
-    |--------------------------------------------------------------------------
-    */
+        } catch (error) {
 
-    if (token) {
+            loginMessage.textContent =
+                error.message;
 
-        if (loginSection) {
+            adminToken =
+                "";
 
-            loginSection.hidden =
-                true;
+            updateAuthUI();
 
-        }
+        } finally {
 
-
-        if (dashboardSection) {
-
-            dashboardSection.hidden =
+            loginButton.disabled =
                 false;
 
         }
 
-
-        if (logoutButton) {
-
-            logoutButton.hidden =
-                false;
-
-        }
-
-
-        if (refreshButton) {
-
-            refreshButton.hidden =
-                false;
-
-        }
-
-        return;
-
     }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | LOGGED OUT
-    |--------------------------------------------------------------------------
-    */
-
-    if (loginSection) {
-
-        loginSection.hidden =
-            false;
-
-    }
-
-
-    if (dashboardSection) {
-
-        dashboardSection.hidden =
-            true;
-
-    }
-
-
-    if (logoutButton) {
-
-        logoutButton.hidden =
-            true;
-
-    }
-
-
-    if (refreshButton) {
-
-        refreshButton.hidden =
-            true;
-
-    }
-
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| LOGOUT
-|--------------------------------------------------------------------------
-*/
-
-if (logoutButton) {
-
-    logoutButton.addEventListener(
-        "click",
-        function () {
-
-            logout();
-
-        }
-    );
-
-}
-
-
-function logout() {
-
-    adminToken =
-        "";
-
-    sessionStorage.removeItem(
-        "readygym_admin_token"
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Clear current data
-    |--------------------------------------------------------------------------
-    */
-
-    allLicenses =
-        [];
-
-    selectedLicenseId =
-        null;
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Close modal if open
-    |--------------------------------------------------------------------------
-    */
-
-    if (licenseModal) {
-
-        licenseModal.hidden =
-            true;
-
-    }
-
-
-    document.body.style.overflow =
-        "";
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Update screen
-    |--------------------------------------------------------------------------
-    */
-
-    updateAuthUI();
-
-
-    if (loginMessage) {
-
-        loginMessage.textContent =
-            "Please login again.";
-
-    }
-
-}
+);
 
 
 /*
@@ -554,18 +417,14 @@ async function loadLicenses() {
             "/api/license/admin/list"
         );
 
-
     allLicenses =
         result.licenses || [];
-
 
     renderStatistics(
         allLicenses
     );
 
-
     applyLicenseFilters();
-
 }
 
 
@@ -582,89 +441,58 @@ function renderStatistics(
     const total =
         licenses.length;
 
-
     const active =
         licenses.filter(
-            license =>
+            (license) =>
                 license.status ===
                 "active"
         ).length;
 
-
     const inactive =
         licenses.filter(
-            license =>
+            (license) =>
                 license.status ===
                 "inactive"
         ).length;
 
-
     const suspended =
         licenses.filter(
-            license =>
+            (license) =>
                 license.status ===
                 "suspended"
         ).length;
 
-
     const revoked =
         licenses.filter(
-            license =>
+            (license) =>
                 license.status ===
                 "revoked"
         ).length;
 
+    document.getElementById(
+        "totalLicenses"
+    ).textContent =
+        total;
 
-    const totalElement =
-        document.getElementById(
-            "totalLicenses"
-        );
+    document.getElementById(
+        "activeLicenses"
+    ).textContent =
+        active;
 
-    const activeElement =
-        document.getElementById(
-            "activeLicenses"
-        );
+    document.getElementById(
+        "inactiveLicenses"
+    ).textContent =
+        inactive;
 
-    const inactiveElement =
-        document.getElementById(
-            "inactiveLicenses"
-        );
+    document.getElementById(
+        "suspendedLicenses"
+    ).textContent =
+        suspended;
 
-    const suspendedElement =
-        document.getElementById(
-            "suspendedLicenses"
-        );
-
-    const revokedElement =
-        document.getElementById(
-            "revokedLicenses"
-        );
-
-
-    if (totalElement)
-        totalElement.textContent =
-            total;
-
-
-    if (activeElement)
-        activeElement.textContent =
-            active;
-
-
-    if (inactiveElement)
-        inactiveElement.textContent =
-            inactive;
-
-
-    if (suspendedElement)
-        suspendedElement.textContent =
-            suspended;
-
-
-    if (revokedElement)
-        revokedElement.textContent =
-            revoked;
-
+    document.getElementById(
+        "revokedLicenses"
+    ).textContent =
+        revoked;
 }
 
 
@@ -678,14 +506,8 @@ function renderLicenses(
     licenses
 ) {
 
-    if (!licenseTableBody) {
-        return;
-    }
-
-
     licenseTableBody.innerHTML =
         "";
-
 
     if (!licenses.length) {
 
@@ -698,117 +520,26 @@ function renderLicenses(
         `;
 
         return;
-
     }
 
-
     licenses.forEach(
-        function (license) {
+        (license) => {
 
             const row =
                 document.createElement(
                     "tr"
                 );
 
-
             const created =
                 license.createdAt
-                    ? formatDateTime(
+                    ? new Date(
                         license.createdAt
-                    )
+                    ).toLocaleDateString()
                     : "-";
-
 
             const store =
                 license.shopDomain ||
                 "Not activated";
-
-
-            let actionHtml =
-                "";
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Status action
-            |--------------------------------------------------------------------------
-            */
-
-            if (
-                license.status ===
-                "active"
-            ) {
-
-                actionHtml = `
-                    <button
-                        class="small-button small-suspend"
-                        onclick="suspendLicense('${license._id}')"
-                    >
-                        Suspend
-                    </button>
-                `;
-
-            } else if (
-                license.status ===
-                "inactive"
-            ) {
-
-                actionHtml = `
-                    <button
-                        class="small-button small-activate"
-                        onclick="activateLicense('${license._id}')"
-                    >
-                        Activate
-                    </button>
-                `;
-
-            } else if (
-                license.status ===
-                "suspended"
-            ) {
-
-                actionHtml = `
-                    <button
-                        class="small-button small-activate"
-                        onclick="unsuspendLicense('${license._id}')"
-                    >
-                        Unsuspend
-                    </button>
-                `;
-
-            } else {
-
-                actionHtml = `
-                    <span>
-                        No action
-                    </span>
-                `;
-
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Revoke button
-            |--------------------------------------------------------------------------
-            */
-
-            const revokeHtml =
-                license.status !==
-                    "revoked" &&
-                license.status !==
-                    "expired"
-
-                    ? `
-                        <button
-                            class="small-button revoke-button"
-                            onclick="revokeLicense('${license._id}')"
-                        >
-                            Revoke
-                        </button>
-                    `
-                    : "";
-
 
             row.innerHTML = `
 
@@ -833,9 +564,7 @@ function renderLicenses(
                 </td>
 
                 <td>
-                    <span class="status status-${escapeHtml(
-                        license.status
-                    )}">
+                    <span class="status status-${license.status}">
                         ${escapeHtml(
                             license.status
                         )}
@@ -847,7 +576,6 @@ function renderLicenses(
                 </td>
 
                 <td>
-
                     <div class="actions">
 
                         <button
@@ -864,15 +592,70 @@ function renderLicenses(
                             Copy
                         </button>
 
-                        ${actionHtml}
+                        ${
+                            license.status ===
+                            "active"
 
-                        ${revokeHtml}
+                            ? `
+                                <button
+                                    class="small-button small-suspend"
+                                    onclick="suspendLicense('${license._id}')"
+                                >
+                                    Suspend
+                                </button>
+                            `
+
+                            : license.status ===
+                              "inactive"
+
+                            ? `
+                                <button
+                                    class="small-button small-activate"
+                                    onclick="activateLicense('${license._id}')"
+                                >
+                                    Activate
+                                </button>
+                            `
+
+                            : license.status ===
+                              "suspended"
+
+                            ? `
+                                <button
+                                    class="small-button small-activate"
+                                    onclick="unsuspendLicense('${license._id}')"
+                                >
+                                    Unsuspend
+                                </button>
+                            `
+
+                            : `
+                                <span>
+                                    No action
+                                </span>
+                            `
+                        }
+
+                        ${
+                            license.status !==
+                                "revoked" &&
+                            license.status !==
+                                "expired"
+
+                            ? `
+                                <button
+                                    class="small-button revoke-button"
+                                    onclick="revokeLicense('${license._id}')"
+                                >
+                                    Revoke
+                                </button>
+                            `
+                            : ""
+                        }
 
                     </div>
-
                 </td>
             `;
-
 
             licenseTableBody.appendChild(
                 row
@@ -880,7 +663,6 @@ function renderLicenses(
 
         }
     );
-
 }
 
 
@@ -890,83 +672,70 @@ function renderLicenses(
 |--------------------------------------------------------------------------
 */
 
-if (createLicenseButton) {
+createLicenseButton.addEventListener(
+    "click",
+    async function () {
 
-    createLicenseButton.addEventListener(
-        "click",
-        async function () {
+        createMessage.textContent =
+            "Creating license...";
+
+        createLicenseButton.disabled =
+            true;
+
+        try {
+
+            const plan =
+                document.getElementById(
+                    "licensePlan"
+                ).value;
+
+            const themeName =
+                document.getElementById(
+                    "themeName"
+                ).value.trim() ||
+                "Ready Gym";
+
+            const expiresAt =
+                document.getElementById(
+                    "licenseExpiresAt"
+                ).value;
+
+            const result =
+                await apiRequest(
+                    "/api/license/create",
+                    {
+                        method: "POST",
+
+                        body:
+                            JSON.stringify({
+                                plan,
+                                themeName,
+                                expiresAt:
+                                    expiresAt ||
+                                    null,
+                            }),
+                    }
+                );
 
             createMessage.textContent =
-                "Creating license...";
+                `License created: ${result.license.licenseKey}`;
 
+            await loadLicenses();
+
+        } catch (error) {
+
+            createMessage.textContent =
+                error.message;
+
+        } finally {
 
             createLicenseButton.disabled =
-                true;
-
-
-            try {
-
-                const plan =
-                    document.getElementById(
-                        "licensePlan"
-                    ).value;
-
-
-                const themeName =
-                    document.getElementById(
-                        "themeName"
-                    ).value.trim() ||
-                    "Ready Gym";
-
-
-                const expiresAt =
-                    document.getElementById(
-                        "licenseExpiresAt"
-                    ).value;
-
-
-                const result =
-                    await apiRequest(
-                        "/api/license/create",
-                        {
-                            method:
-                                "POST",
-
-                            body:
-                                JSON.stringify({
-                                    plan,
-                                    themeName,
-                                    expiresAt:
-                                        expiresAt ||
-                                        null
-                                })
-                        }
-                    );
-
-
-                createMessage.textContent =
-                    `License created: ${result.license.licenseKey}`;
-
-
-                await loadLicenses();
-
-
-            } catch (error) {
-
-                createMessage.textContent =
-                    error.message;
-
-            } finally {
-
-                createLicenseButton.disabled =
-                    false;
-
-            }
+                false;
 
         }
-    );
 
-}
+    }
+);
 
 
 /*
@@ -984,25 +753,19 @@ async function suspendLicense(
             "Are you sure you want to suspend this license?"
         )
     ) {
-
         return;
-
     }
-
 
     try {
 
         await apiRequest(
             `/api/license/admin/${id}/suspend`,
             {
-                method:
-                    "PATCH"
+                method: "PATCH",
             }
         );
 
-
         await loadLicenses();
-
 
     } catch (error) {
 
@@ -1011,7 +774,6 @@ async function suspendLicense(
         );
 
     }
-
 }
 
 
@@ -1030,14 +792,11 @@ async function unsuspendLicense(
         await apiRequest(
             `/api/license/admin/${id}/unsuspend`,
             {
-                method:
-                    "PATCH"
+                method: "PATCH",
             }
         );
 
-
         await loadLicenses();
-
 
     } catch (error) {
 
@@ -1046,7 +805,246 @@ async function unsuspendLicense(
         );
 
     }
+}
 
+
+/*
+|--------------------------------------------------------------------------
+| REFRESH
+|--------------------------------------------------------------------------
+*/
+
+refreshButton.addEventListener(
+    "click",
+    async function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Refresh only works while logged in
+        |--------------------------------------------------------------------------
+        */
+
+        if (!adminToken) {
+
+            updateAuthUI();
+
+            return;
+
+        }
+
+        try {
+
+            await loadLicenses();
+
+        } catch (error) {
+
+            alert(
+                error.message
+            );
+
+        }
+
+    }
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| LOGOUT
+|--------------------------------------------------------------------------
+*/
+
+logoutButton.addEventListener(
+    "click",
+    function () {
+
+        logout();
+
+    }
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| HTML ESCAPING
+|--------------------------------------------------------------------------
+*/
+
+function escapeHtml(
+    value
+) {
+
+    return String(value)
+
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+
+        .replace(
+            /</g,
+            "&lt;"
+        )
+
+        .replace(
+            />/g,
+            "&gt;"
+        )
+
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| LOGOUT FUNCTION
+|--------------------------------------------------------------------------
+*/
+
+function logout() {
+
+    adminToken =
+        "";
+
+    sessionStorage.removeItem(
+        "readygym_admin_token"
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hide dashboard
+    |--------------------------------------------------------------------------
+    */
+
+    dashboardSection.hidden =
+        true;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Show login
+    |--------------------------------------------------------------------------
+    */
+
+    loginSection.hidden =
+        false;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hide admin-only buttons
+    |--------------------------------------------------------------------------
+    */
+
+    logoutButton.hidden =
+        true;
+
+    refreshButton.hidden =
+        true;
+
+    loginMessage.textContent =
+        "Please login again.";
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| SEARCH / FILTER
+|--------------------------------------------------------------------------
+*/
+
+function applyLicenseFilters() {
+
+    const search =
+        licenseSearch.value
+            .trim()
+            .toLowerCase();
+
+    const status =
+        licenseStatusFilter.value;
+
+    const filtered =
+        allLicenses.filter(
+            (license) => {
+
+                const key =
+                    (
+                        license.licenseKey ||
+                        ""
+                    ).toLowerCase();
+
+                const store =
+                    (
+                        license.shopDomain ||
+                        ""
+                    ).toLowerCase();
+
+                const matchesSearch =
+                    !search ||
+                    key.includes(search) ||
+                    store.includes(search);
+
+                const matchesStatus =
+                    status === "all" ||
+                    license.status === status;
+
+                return (
+                    matchesSearch &&
+                    matchesStatus
+                );
+
+            }
+        );
+
+    renderLicenses(
+        filtered
+    );
+}
+
+licenseSearch.addEventListener(
+    "input",
+    applyLicenseFilters
+);
+
+licenseStatusFilter.addEventListener(
+    "change",
+    applyLicenseFilters
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| COPY FUNCTION
+|--------------------------------------------------------------------------
+*/
+
+async function copyLicenseKey(
+    licenseKey
+) {
+
+    try {
+
+        await navigator.clipboard.writeText(
+            licenseKey
+        );
+
+        alert(
+            "License key copied."
+        );
+
+    } catch (error) {
+
+        alert(
+            "Unable to copy license key."
+        );
+
+    }
 }
 
 
@@ -1065,14 +1063,11 @@ async function activateLicense(
         await apiRequest(
             `/api/license/admin/${id}/activate`,
             {
-                method:
-                    "PATCH"
+                method: "PATCH",
             }
         );
 
-
         await loadLicenses();
-
 
     } catch (error) {
 
@@ -1081,7 +1076,6 @@ async function activateLicense(
         );
 
     }
-
 }
 
 
@@ -1100,25 +1094,19 @@ async function deactivateLicense(
             "Deactivate this license?"
         )
     ) {
-
         return;
-
     }
-
 
     try {
 
         await apiRequest(
             `/api/license/admin/${id}/deactivate`,
             {
-                method:
-                    "PATCH"
+                method: "PATCH",
             }
         );
 
-
         await loadLicenses();
-
 
     } catch (error) {
 
@@ -1127,236 +1115,6 @@ async function deactivateLicense(
         );
 
     }
-
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| REVOKE
-|--------------------------------------------------------------------------
-*/
-
-async function revokeLicense(
-    id
-) {
-
-    const license =
-        allLicenses.find(
-            item =>
-                String(
-                    item._id
-                ) ===
-                String(id)
-        );
-
-
-    if (!license) {
-
-        alert(
-            "License not found."
-        );
-
-        return;
-
-    }
-
-
-    const confirmed =
-        confirm(
-            `Are you sure you want to permanently revoke license ${license.licenseKey}?\n\n` +
-            `This will invalidate the current activation and the license cannot be activated again.`
-        );
-
-
-    if (!confirmed) {
-        return;
-    }
-
-
-    try {
-
-        await apiRequest(
-            `/api/license/admin/${id}/revoke`,
-            {
-                method:
-                    "PATCH"
-            }
-        );
-
-
-        await loadLicenses();
-
-
-        alert(
-            "License revoked successfully."
-        );
-
-
-    } catch (error) {
-
-        alert(
-            error.message
-        );
-
-    }
-
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| REFRESH
-|--------------------------------------------------------------------------
-*/
-
-if (refreshButton) {
-
-    refreshButton.addEventListener(
-        "click",
-        async function () {
-
-            try {
-
-                await loadLicenses();
-
-            } catch (error) {
-
-                alert(
-                    error.message
-                );
-
-            }
-
-        }
-    );
-
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| SEARCH / FILTER
-|--------------------------------------------------------------------------
-*/
-
-function applyLicenseFilters() {
-
-    if (
-        !licenseSearch ||
-        !licenseStatusFilter
-    ) {
-
-        return;
-
-    }
-
-
-    const search =
-        licenseSearch.value
-            .trim()
-            .toLowerCase();
-
-
-    const status =
-        licenseStatusFilter.value;
-
-
-    const filtered =
-        allLicenses.filter(
-            function (license) {
-
-                const key =
-                    (
-                        license.licenseKey ||
-                        ""
-                    ).toLowerCase();
-
-
-                const store =
-                    (
-                        license.shopDomain ||
-                        ""
-                    ).toLowerCase();
-
-
-                const matchesSearch =
-                    !search ||
-                    key.includes(search) ||
-                    store.includes(search);
-
-
-                const matchesStatus =
-                    status === "all" ||
-                    license.status === status;
-
-
-                return (
-                    matchesSearch &&
-                    matchesStatus
-                );
-
-            }
-        );
-
-
-    renderLicenses(
-        filtered
-    );
-
-}
-
-
-if (licenseSearch) {
-
-    licenseSearch.addEventListener(
-        "input",
-        applyLicenseFilters
-    );
-
-}
-
-
-if (licenseStatusFilter) {
-
-    licenseStatusFilter.addEventListener(
-        "change",
-        applyLicenseFilters
-    );
-
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| COPY LICENSE
-|--------------------------------------------------------------------------
-*/
-
-async function copyLicenseKey(
-    licenseKey
-) {
-
-    try {
-
-        await navigator.clipboard.writeText(
-            licenseKey
-        );
-
-
-        alert(
-            "License key copied."
-        );
-
-
-    } catch (error) {
-
-        alert(
-            "Unable to copy license key."
-        );
-
-    }
-
 }
 
 
@@ -1372,13 +1130,12 @@ function viewLicense(
 
     const license =
         allLicenses.find(
-            item =>
+            (item) =>
                 String(
                     item._id
                 ) ===
                 String(id)
         );
-
 
     if (!license) {
 
@@ -1387,19 +1144,16 @@ function viewLicense(
         );
 
         return;
-
     }
-
 
     selectedLicenseId =
         license._id;
 
-
     document.getElementById(
         "detailLicenseKey"
     ).value =
-        license.licenseKey || "";
-
+        license.licenseKey ||
+        "";
 
     document.getElementById(
         "detailShopDomain"
@@ -1407,25 +1161,23 @@ function viewLicense(
         license.shopDomain ||
         "Not activated";
 
-
     document.getElementById(
         "detailThemeName"
     ).value =
         license.themeName ||
         "Ready Gym";
 
-
-    detailPlan.value =
+    document.getElementById(
+        "detailPlan"
+    ).value =
         license.plan ||
         "lifetime";
-
 
     document.getElementById(
         "detailStatus"
     ).value =
         license.status ||
         "";
-
 
     document.getElementById(
         "detailExpiresAt"
@@ -1434,14 +1186,12 @@ function viewLicense(
             license.expiresAt
         );
 
-
     document.getElementById(
         "detailCreatedAt"
     ).value =
         formatDateTime(
             license.createdAt
         );
-
 
     document.getElementById(
         "detailActivatedAt"
@@ -1450,7 +1200,6 @@ function viewLicense(
             license.activatedAt
         );
 
-
     document.getElementById(
         "detailLastCheckedAt"
     ).value =
@@ -1458,52 +1207,39 @@ function viewLicense(
             license.lastCheckedAt
         );
 
-
     document.getElementById(
         "detailTokenVersion"
     ).value =
         license.tokenVersion ??
         0;
 
-
-    if (renewalExpiresAt) {
-
-        renewalExpiresAt.value =
-            formatDateForInput(
-                license.expiresAt
-            );
-
-    }
-
-
     licenseModalMessage.textContent =
         "";
 
+    /*
+    |--------------------------------------------------------------------------
+    | Lifetime license handling
+    |--------------------------------------------------------------------------
+    */
 
     toggleExpirationField();
-
 
     licenseModal.hidden =
         false;
 
-
     document.body.style.overflow =
         "hidden";
 
+    renewalExpiresAt.value =
+        formatDateForInput(
+            license.expiresAt
+        );
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| DATE HELPERS
-|--------------------------------------------------------------------------
-| IMPORTANT:
-| These functions ONLY format the stored server/database date.
-| They do NOT decide whether the license is expired.
-|
-| Actual expiration decision happens on Node.js server:
-|
-| new Date() >= new Date(license.expiresAt)
+| DATE FORMATTING
 |--------------------------------------------------------------------------
 */
 
@@ -1512,13 +1248,13 @@ function formatDateForInput(
 ) {
 
     if (!value) {
-        return "";
-    }
 
+        return "";
+
+    }
 
     const date =
         new Date(value);
-
 
     if (
         Number.isNaN(
@@ -1530,37 +1266,26 @@ function formatDateForInput(
 
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Use UTC values from the stored ISO date.
-    |--------------------------------------------------------------------------
-    */
-
     const year =
-        date.getUTCFullYear();
-
+        date.getFullYear();
 
     const month =
         String(
-            date.getUTCMonth() + 1
+            date.getMonth() + 1
         ).padStart(
             2,
             "0"
         );
-
 
     const day =
         String(
-            date.getUTCDate()
+            date.getDate()
         ).padStart(
             2,
             "0"
         );
 
-
     return `${year}-${month}-${day}`;
-
 }
 
 
@@ -1574,10 +1299,8 @@ function formatDateTime(
 
     }
 
-
     const date =
         new Date(value);
-
 
     if (
         Number.isNaN(
@@ -1589,82 +1312,46 @@ function formatDateTime(
 
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Display stored server date.
-    |--------------------------------------------------------------------------
-    */
-
-    return date.toISOString();
-
+    return date.toLocaleString();
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| MODAL CLOSE
+| MODAL CLOSING
 |--------------------------------------------------------------------------
 */
 
 function closeLicenseModalWindow() {
 
-    if (licenseModal) {
-
-        licenseModal.hidden =
-            true;
-
-    }
-
+    licenseModal.hidden =
+        true;
 
     document.body.style.overflow =
         "";
 
-
     selectedLicenseId =
         null;
-
 }
 
+closeLicenseModal.addEventListener(
+    "click",
+    closeLicenseModalWindow
+);
 
-if (closeLicenseModal) {
+cancelLicenseModal.addEventListener(
+    "click",
+    closeLicenseModalWindow
+);
 
-    closeLicenseModal.addEventListener(
+licenseModal
+    .querySelector(
+        ".modal-overlay"
+    )
+    .addEventListener(
         "click",
         closeLicenseModalWindow
     );
-
-}
-
-
-if (cancelLicenseModal) {
-
-    cancelLicenseModal.addEventListener(
-        "click",
-        closeLicenseModalWindow
-    );
-
-}
-
-
-if (licenseModal) {
-
-    const overlay =
-        licenseModal.querySelector(
-            ".modal-overlay"
-        );
-
-
-    if (overlay) {
-
-        overlay.addEventListener(
-            "click",
-            closeLicenseModalWindow
-        );
-
-    }
-
-}
 
 
 /*
@@ -1673,15 +1360,10 @@ if (licenseModal) {
 |--------------------------------------------------------------------------
 */
 
-if (detailPlan) {
-
-    detailPlan.addEventListener(
-        "change",
-        toggleExpirationField
-    );
-
-}
-
+detailPlan.addEventListener(
+    "change",
+    toggleExpirationField
+);
 
 function toggleExpirationField() {
 
@@ -1689,17 +1371,6 @@ function toggleExpirationField() {
         document.getElementById(
             "detailExpiresAt"
         );
-
-
-    if (
-        !expiresInput ||
-        !detailPlan
-    ) {
-
-        return;
-
-    }
-
 
     if (
         detailPlan.value ===
@@ -1712,45 +1383,24 @@ function toggleExpirationField() {
         expiresInput.disabled =
             true;
 
+        renewalDateGroup.style.display =
+            "none";
 
-        if (renewalDateGroup) {
-
-            renewalDateGroup.style.display =
-                "none";
-
-        }
-
-
-        if (renewLicenseButton) {
-
-            renewLicenseButton.style.display =
-                "none";
-
-        }
+        renewLicenseButton.style.display =
+            "none";
 
     } else {
 
         expiresInput.disabled =
             false;
 
+        renewalDateGroup.style.display =
+            "flex";
 
-        if (renewalDateGroup) {
-
-            renewalDateGroup.style.display =
-                "flex";
-
-        }
-
-
-        if (renewLicenseButton) {
-
-            renewLicenseButton.style.display =
-                "inline-block";
-
-        }
+        renewLicenseButton.style.display =
+            "inline-block";
 
     }
-
 }
 
 
@@ -1760,105 +1410,95 @@ function toggleExpirationField() {
 |--------------------------------------------------------------------------
 */
 
-if (saveLicenseButton) {
+saveLicenseButton.addEventListener(
+    "click",
+    async function () {
 
-    saveLicenseButton.addEventListener(
-        "click",
-        async function () {
+        if (!selectedLicenseId) {
 
-            if (!selectedLicenseId) {
-                return;
-            }
-
-
-            saveLicenseButton.disabled =
-                true;
-
-
-            licenseModalMessage.textContent =
-                "Saving changes...";
-
-
-            try {
-
-                const plan =
-                    detailPlan.value;
-
-
-                const themeName =
-                    document.getElementById(
-                        "detailThemeName"
-                    ).value.trim();
-
-
-                const expiresAt =
-                    document.getElementById(
-                        "detailExpiresAt"
-                    ).value;
-
-
-                const result =
-                    await apiRequest(
-                        `/api/license/admin/${selectedLicenseId}/update`,
-                        {
-                            method:
-                                "PATCH",
-
-                            body:
-                                JSON.stringify({
-
-                                    plan,
-
-                                    themeName,
-
-                                    expiresAt:
-                                        plan ===
-                                        "lifetime"
-                                            ? null
-                                            : (
-                                                expiresAt ||
-                                                null
-                                            )
-
-                                })
-                        }
-                    );
-
-
-                licenseModalMessage.textContent =
-                    result.message ||
-                    "License updated successfully.";
-
-
-                await loadLicenses();
-
-
-                setTimeout(
-                    function () {
-
-                        closeLicenseModalWindow();
-
-                    },
-                    700
-                );
-
-
-            } catch (error) {
-
-                licenseModalMessage.textContent =
-                    error.message;
-
-            } finally {
-
-                saveLicenseButton.disabled =
-                    false;
-
-            }
+            return;
 
         }
-    );
 
-}
+        saveLicenseButton.disabled =
+            true;
+
+        licenseModalMessage.textContent =
+            "Saving changes...";
+
+        try {
+
+            const plan =
+                document.getElementById(
+                    "detailPlan"
+                ).value;
+
+            const themeName =
+                document.getElementById(
+                    "detailThemeName"
+                ).value.trim();
+
+            const expiresAt =
+                document.getElementById(
+                    "detailExpiresAt"
+                ).value;
+
+            const result =
+                await apiRequest(
+                    `/api/license/admin/${selectedLicenseId}/update`,
+                    {
+                        method: "PATCH",
+
+                        body:
+                            JSON.stringify({
+
+                                plan,
+
+                                themeName,
+
+                                expiresAt:
+                                    plan ===
+                                    "lifetime"
+                                        ? null
+                                        : (
+                                            expiresAt ||
+                                            null
+                                        )
+
+                            })
+
+                    }
+                );
+
+            licenseModalMessage.textContent =
+                result.message ||
+                "License updated successfully.";
+
+            await loadLicenses();
+
+            setTimeout(
+                () => {
+
+                    closeLicenseModalWindow();
+
+                },
+                700
+            );
+
+        } catch (error) {
+
+            licenseModalMessage.textContent =
+                error.message;
+
+        } finally {
+
+            saveLicenseButton.disabled =
+                false;
+
+        }
+
+    }
+);
 
 
 /*
@@ -1867,45 +1507,221 @@ if (saveLicenseButton) {
 |--------------------------------------------------------------------------
 */
 
-if (modalCopyButton) {
+modalCopyButton.addEventListener(
+    "click",
+    async function () {
 
-    modalCopyButton.addEventListener(
-        "click",
-        async function () {
+        const key =
+            document.getElementById(
+                "detailLicenseKey"
+            ).value;
 
-            const key =
-                document.getElementById(
-                    "detailLicenseKey"
-                ).value;
+        try {
 
+            await navigator.clipboard.writeText(
+                key
+            );
 
-            try {
+            licenseModalMessage.textContent =
+                "License key copied.";
 
-                await navigator.clipboard.writeText(
-                    key
-                );
+        } catch (error) {
 
-
-                licenseModalMessage.textContent =
-                    "License key copied.";
-
-
-            } catch (error) {
-
-                licenseModalMessage.textContent =
-                    "Unable to copy license key.";
-
-            }
+            licenseModalMessage.textContent =
+                "Unable to copy license key.";
 
         }
-    );
 
+    }
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| REVOKE LICENSE
+|--------------------------------------------------------------------------
+*/
+
+async function revokeLicense(
+    id
+) {
+
+    const license =
+        allLicenses.find(
+            (item) =>
+                String(
+                    item._id
+                ) ===
+                String(id)
+        );
+
+    if (!license) {
+
+        alert(
+            "License not found."
+        );
+
+        return;
+    }
+
+    const confirmed =
+        confirm(
+            `Are you sure you want to permanently revoke license ${license.licenseKey}?\n\n` +
+            `This will invalidate the current activation and the license cannot be activated again.`
+        );
+
+    if (!confirmed) {
+
+        return;
+
+    }
+
+    try {
+
+        await apiRequest(
+            `/api/license/admin/${id}/revoke`,
+            {
+                method: "PATCH"
+            }
+        );
+
+        await loadLicenses();
+
+        alert(
+            "License revoked successfully."
+        );
+
+    } catch (error) {
+
+        alert(
+            error.message
+        );
+
+    }
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| RENEW LICENSE
+| CUSTOM RENEWAL
+|--------------------------------------------------------------------------
+*/
+
+renewLicenseButton.addEventListener(
+    "click",
+    async function () {
+
+        if (!selectedLicenseId) {
+
+            return;
+
+        }
+
+        const newDate =
+            renewalExpiresAt.value;
+
+        if (!newDate) {
+
+            licenseModalMessage.textContent =
+                "Please select a renewal date.";
+
+            return;
+
+        }
+
+        const selectedDate =
+            new Date(
+                `${newDate}T23:59:59`
+            );
+
+        if (
+            selectedDate <=
+            new Date()
+        ) {
+
+            licenseModalMessage.textContent =
+                "Renewal date must be in the future.";
+
+            return;
+
+        }
+
+        const confirmed =
+            confirm(
+                `Renew this license until ${newDate}?`
+            );
+
+        if (!confirmed) {
+
+            return;
+
+        }
+
+        renewLicenseButton.disabled =
+            true;
+
+        licenseModalMessage.textContent =
+            "Renewing license...";
+
+        try {
+
+            const result =
+                await apiRequest(
+                    `/api/license/admin/${selectedLicenseId}/update`,
+                    {
+                        method: "PATCH",
+
+                        body:
+                            JSON.stringify({
+
+                                plan:
+                                    detailPlan.value,
+
+                                expiresAt:
+                                    newDate,
+
+                                renew:
+                                    true
+
+                            })
+
+                    }
+                );
+
+            licenseModalMessage.textContent =
+                result.message ||
+                "License renewed successfully.";
+
+            await loadLicenses();
+
+            setTimeout(
+                () => {
+
+                    closeLicenseModalWindow();
+
+                },
+                700
+            );
+
+        } catch (error) {
+
+            licenseModalMessage.textContent =
+                error.message;
+
+        } finally {
+
+            renewLicenseButton.disabled =
+                false;
+
+        }
+
+    }
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| RENEW LICENSE UNTIL
 |--------------------------------------------------------------------------
 */
 
@@ -1915,39 +1731,33 @@ async function renewLicenseUntil(
 ) {
 
     if (!selectedLicenseId) {
-        return;
-    }
 
+        return;
+
+    }
 
     const confirmed =
         confirm(
             `Renew this license for ${label}?\n\nNew expiration: ${newDate}`
         );
 
-
     if (!confirmed) {
+
         return;
+
     }
 
+    renewMonthButton.disabled =
+        true;
 
-    if (renewMonthButton)
-        renewMonthButton.disabled =
-            true;
+    renewYearButton.disabled =
+        true;
 
-
-    if (renewYearButton)
-        renewYearButton.disabled =
-            true;
-
-
-    if (renewLicenseButton)
-        renewLicenseButton.disabled =
-            true;
-
+    renewLicenseButton.disabled =
+        true;
 
     licenseModalMessage.textContent =
         "Renewing license...";
-
 
     try {
 
@@ -1955,8 +1765,7 @@ async function renewLicenseUntil(
             await apiRequest(
                 `/api/license/admin/${selectedLicenseId}/update`,
                 {
-                    method:
-                        "PATCH",
+                    method: "PATCH",
 
                     body:
                         JSON.stringify({
@@ -1971,27 +1780,24 @@ async function renewLicenseUntil(
                                 true
 
                         })
+
                 }
             );
-
 
         licenseModalMessage.textContent =
             result.message ||
             "License renewed successfully.";
 
-
         await loadLicenses();
 
-
         setTimeout(
-            function () {
+            () => {
 
                 closeLicenseModalWindow();
 
             },
             700
         );
-
 
     } catch (error) {
 
@@ -2000,22 +1806,16 @@ async function renewLicenseUntil(
 
     } finally {
 
-        if (renewMonthButton)
-            renewMonthButton.disabled =
-                false;
+        renewMonthButton.disabled =
+            false;
 
+        renewYearButton.disabled =
+            false;
 
-        if (renewYearButton)
-            renewYearButton.disabled =
-                false;
-
-
-        if (renewLicenseButton)
-            renewLicenseButton.disabled =
-                false;
+        renewLicenseButton.disabled =
+            false;
 
     }
-
 }
 
 
@@ -2025,72 +1825,56 @@ async function renewLicenseUntil(
 |--------------------------------------------------------------------------
 */
 
-if (renewMonthButton) {
+renewMonthButton.addEventListener(
+    "click",
+    function () {
 
-    renewMonthButton.addEventListener(
-        "click",
-        function () {
+        const license =
+            allLicenses.find(
+                (item) =>
+                    String(
+                        item._id
+                    ) ===
+                    String(
+                        selectedLicenseId
+                    )
+            );
 
-            const license =
-                allLicenses.find(
-                    item =>
-                        String(
-                            item._id
-                        ) ===
-                        String(
-                            selectedLicenseId
-                        )
-                );
+        let date;
 
+        if (
+            license &&
+            license.expiresAt &&
+            new Date(
+                license.expiresAt
+            ) > new Date()
+        ) {
 
-            let date;
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | If current expiry exists and is still in future,
-            | extend from that expiry.
-            |--------------------------------------------------------------------------
-            */
-
-            if (
-                license &&
-                license.expiresAt &&
+            date =
                 new Date(
                     license.expiresAt
-                ).getTime() >
-                    Date.now()
-            ) {
+                );
 
-                date =
-                    new Date(
-                        license.expiresAt
-                    );
+        } else {
 
-            } else {
-
-                date =
-                    new Date();
-
-            }
-
-
-            date.setUTCMonth(
-                date.getUTCMonth() + 1
-            );
-
-
-            renewLicenseUntil(
-                formatDateForInput(
-                    date
-                ),
-                "1 month"
-            );
+            date =
+                new Date();
 
         }
-    );
 
-}
+        date.setMonth(
+            date.getMonth() + 1
+        );
+
+        renewLicenseUntil(
+            formatDateForInput(
+                date
+            ),
+            "1 month"
+        );
+
+    }
+);
 
 
 /*
@@ -2099,137 +1883,53 @@ if (renewMonthButton) {
 |--------------------------------------------------------------------------
 */
 
-if (renewYearButton) {
+renewYearButton.addEventListener(
+    "click",
+    function () {
 
-    renewYearButton.addEventListener(
-        "click",
-        function () {
+        const license =
+            allLicenses.find(
+                (item) =>
+                    String(
+                        item._id
+                    ) ===
+                    String(
+                        selectedLicenseId
+                    )
+            );
 
-            const license =
-                allLicenses.find(
-                    item =>
-                        String(
-                            item._id
-                        ) ===
-                        String(
-                            selectedLicenseId
-                        )
-                );
+        let date;
 
+        if (
+            license &&
+            license.expiresAt &&
+            new Date(
+                license.expiresAt
+            ) > new Date()
+        ) {
 
-            let date;
-
-
-            if (
-                license &&
-                license.expiresAt &&
+            date =
                 new Date(
                     license.expiresAt
-                ).getTime() >
-                    Date.now()
-            ) {
+                );
 
-                date =
-                    new Date(
-                        license.expiresAt
-                    );
+        } else {
 
-            } else {
-
-                date =
-                    new Date();
-
-            }
-
-
-            date.setUTCFullYear(
-                date.getUTCFullYear() + 1
-            );
-
-
-            renewLicenseUntil(
-                formatDateForInput(
-                    date
-                ),
-                "1 year"
-            );
+            date =
+                new Date();
 
         }
-    );
 
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| CUSTOM RENEWAL
-|--------------------------------------------------------------------------
-*/
-
-if (renewLicenseButton) {
-
-    renewLicenseButton.addEventListener(
-        "click",
-        function () {
-
-            const newDate =
-                renewalExpiresAt.value;
-
-
-            if (!newDate) {
-
-                licenseModalMessage.textContent =
-                    "Please select a renewal date.";
-
-                return;
-
-            }
-
-
-            renewLicenseUntil(
-                newDate,
-                "custom period"
-            );
-
-        }
-    );
-
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| HTML ESCAPING
-|--------------------------------------------------------------------------
-*/
-
-function escapeHtml(
-    value
-) {
-
-    return String(
-        value
-    )
-        .replace(
-            /&/g,
-            "&amp;"
-        )
-        .replace(
-            /</g,
-            "&lt;"
-        )
-        .replace(
-            />/g,
-            "&gt;"
-        )
-        .replace(
-            /"/g,
-            "&quot;"
-        )
-        .replace(
-            /'/g,
-            "&#039;"
+        date.setFullYear(
+            date.getFullYear() + 1
         );
 
-}
-```
+        renewLicenseUntil(
+            formatDateForInput(
+                date
+            ),
+            "1 year"
+        );
+
+    }
+);
