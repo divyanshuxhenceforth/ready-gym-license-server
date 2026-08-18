@@ -672,6 +672,7 @@ function renderLicenses(
 |--------------------------------------------------------------------------
 */
 
+
 createLicenseButton.addEventListener(
     "click",
     async function () {
@@ -695,10 +696,6 @@ createLicenseButton.addEventListener(
                 ).value.trim() ||
                 "Ready Gym";
 
-            const expiresAt =
-                document.getElementById(
-                    "licenseExpiresAt"
-                ).value;
 
             const result =
                 await apiRequest(
@@ -709,18 +706,18 @@ createLicenseButton.addEventListener(
                         body:
                             JSON.stringify({
                                 plan,
-                                themeName,
-                                expiresAt:
-                                    expiresAt ||
-                                    null,
-                            }),
+                                themeName
+                            })
                     }
                 );
+
 
             createMessage.textContent =
                 `License created: ${result.license.licenseKey}`;
 
+
             await loadLicenses();
+
 
         } catch (error) {
 
@@ -1933,3 +1930,5 @@ renewYearButton.addEventListener(
 
     }
 );
+
+
