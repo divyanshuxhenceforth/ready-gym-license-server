@@ -606,18 +606,6 @@ function renderLicenses(
                             `
 
                             : license.status ===
-                              "inactive"
-
-                            ? `
-                                <button
-                                    class="small-button small-activate"
-                                    onclick="activateLicense('${license._id}')"
-                                >
-                                    Activate
-                                </button>
-                            `
-
-                            : license.status ===
                               "suspended"
 
                             ? `
