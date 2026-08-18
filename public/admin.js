@@ -2006,94 +2006,48 @@ renewYearButton.addEventListener(
 );
 
 
-
 function updateLicenseModalActions(status) {
 
     const isRevoked =
-        String(status || "").toLowerCase() === "revoked";
+        String(
+            status || ""
+        ).toLowerCase() ===
+        "revoked";
 
-    const renewMonthButton =
-        document.getElementById(
-            "renewMonthButton"
-        );
-
-    const renewYearButton =
-        document.getElementById(
-            "renewYearButton"
-        );
-
-    const renewLicenseButton =
-        document.getElementById(
-            "renewLicenseButton"
-        );
-
-    const saveLicenseButton =
-        document.getElementById(
-            "saveLicenseButton"
-        );
-
-    const renewalDateGroup =
-        document.getElementById(
-            "renewalDateGroup"
-        );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | REVOKED
-    |--------------------------------------------------------------------------
-    */
 
     if (isRevoked) {
 
-        if (renewMonthButton) {
-            renewMonthButton.hidden = true;
-        }
+        renewMonthButton.hidden =
+            true;
 
-        if (renewYearButton) {
-            renewYearButton.hidden = true;
-        }
+        renewYearButton.hidden =
+            true;
 
-        if (renewLicenseButton) {
-            renewLicenseButton.hidden = true;
-        }
+        renewLicenseButton.hidden =
+            true;
 
-        if (saveLicenseButton) {
-            saveLicenseButton.hidden = true;
-        }
+        saveLicenseButton.hidden =
+            true;
 
-        if (renewalDateGroup) {
-            renewalDateGroup.hidden = true;
-        }
+        renewalDateGroup.hidden =
+            true;
 
         return;
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | NORMAL LICENSE
-    |--------------------------------------------------------------------------
-    */
+    renewMonthButton.hidden =
+        false;
 
-    if (renewMonthButton) {
-        renewMonthButton.hidden = false;
-    }
+    renewYearButton.hidden =
+        false;
 
-    if (renewYearButton) {
-        renewYearButton.hidden = false;
-    }
+    renewLicenseButton.hidden =
+        false;
 
-    if (renewLicenseButton) {
-        renewLicenseButton.hidden = false;
-    }
+    saveLicenseButton.hidden =
+        false;
 
-    if (saveLicenseButton) {
-        saveLicenseButton.hidden = false;
-    }
-
-    if (renewalDateGroup) {
-        renewalDateGroup.hidden = false;
-    }
+    renewalDateGroup.hidden =
+        false;
 }
-
