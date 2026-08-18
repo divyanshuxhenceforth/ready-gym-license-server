@@ -1211,6 +1211,11 @@ function viewLicense(
     ).value =
         license.tokenVersion ??
         0;
+    document.getElementById(
+    "detailInstallationId"
+    ).value =
+        license.installationId ||
+        "Not activated";
 
     licenseModalMessage.textContent =
         "";
