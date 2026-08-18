@@ -15,6 +15,12 @@ const licenseSchema = new mongoose.Schema(
             index: true
         },
 
+        installationId: {
+            type: String,
+            default: null,
+            index: true
+        },
+
         themeName: {
             type: String,
             default: "Ready Gym"
