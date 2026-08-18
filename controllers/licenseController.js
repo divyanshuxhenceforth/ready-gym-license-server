@@ -460,23 +460,49 @@ exports.activateLicense = async (req, res) => {
             shopDomain
         } = req.body;
 
+        /*
+        |--------------------------------------------------------------------------
+        | Validate request
+        |--------------------------------------------------------------------------
+        */
+
         if (!licenseKey || !shopDomain) {
+
             return res.status(400).json({
                 success: false,
                 message:
                     "License key and shop domain are required"
             });
+
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Normalize store
+        |--------------------------------------------------------------------------
+        */
 
         const normalizedShop =
             shopDomain
                 .trim()
                 .toLowerCase()
-                .replace(/^https?:\/\//, "")
-                .replace(/\/+$/, "");
+                .replace(
+                    /^https?:\/\//,
+                    ""
+                )
+                .replace(
+                    /\/+$/,
+                    ""
+                );
 
         const normalizedKey =
             licenseKey.trim();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Find license
+        |--------------------------------------------------------------------------
+        */
 
         const license =
             await License.findOne({
@@ -485,16 +511,18 @@ exports.activateLicense = async (req, res) => {
             });
 
         if (!license) {
+
             return res.status(404).json({
                 success: false,
                 message:
                     "License not found"
             });
+
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Check current license status
+        | Revoked
         |--------------------------------------------------------------------------
         */
 
@@ -502,59 +530,69 @@ exports.activateLicense = async (req, res) => {
             license.status ===
             "revoked"
         ) {
+
             return res.status(403).json({
                 success: false,
                 message:
                     "License is revoked"
             });
+
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Suspended
+        |--------------------------------------------------------------------------
+        */
 
         if (
             license.status ===
             "suspended"
         ) {
+
             return res.status(403).json({
                 success: false,
                 message:
                     "License is suspended"
             });
+
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Check existing expiration
+        | Already active
         |--------------------------------------------------------------------------
-        |
-        | Only check an existing expiration if the license
-        | has already been activated before.
-        |
         */
 
         if (
-            license.activatedAt &&
-            license.plan !== "lifetime" &&
-            license.expiresAt
+            license.status ===
+            "active"
         ) {
 
-            const isExpired =
-                await checkLicenseExpiry(
-                    license
-                );
+            if (
+                license.shopDomain ===
+                normalizedShop
+            ) {
 
-            if (isExpired) {
-
-                return res.status(403).json({
+                return res.status(400).json({
                     success: false,
                     message:
-                        "License has expired"
+                        "License is already active on this store"
                 });
 
             }
+
+            return res.status(403).json({
+                success: false,
+                message:
+                    "License is already activated on another store"
+            });
+
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Only inactive licenses can start a new activation
+        | Only inactive licenses can be activated
         |--------------------------------------------------------------------------
         */
 
@@ -563,46 +601,23 @@ exports.activateLicense = async (req, res) => {
             "inactive"
         ) {
 
-            if (
-                license.status ===
-                "active"
-            ) {
-
-                if (
-                    license.shopDomain ===
-                    normalizedShop
-                ) {
-
-                    return res.status(400).json({
-                        success: false,
-                        message:
-                            "License is already active on this store"
-                    });
-
-                }
-
-                return res.status(403).json({
-                    success: false,
-                    message:
-                        "License is already activated on another store"
-                });
-            }
-
             return res.status(403).json({
                 success: false,
                 message:
                     `License is ${license.status}`
             });
+
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Check whether this store already has another license
+        | Check if this store has another license
         |--------------------------------------------------------------------------
         */
 
         const existingLicense =
             await License.findOne({
+
                 shopDomain:
                     normalizedShop,
 
@@ -610,9 +625,16 @@ exports.activateLicense = async (req, res) => {
                     $ne:
                         normalizedKey
                 }
+
             });
 
         if (existingLicense) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Remove old inactive/expired license
+            |--------------------------------------------------------------------------
+            */
 
             if (
                 existingLicense.status ===
@@ -644,16 +666,19 @@ exports.activateLicense = async (req, res) => {
         |--------------------------------------------------------------------------
         | START PLAN
         |--------------------------------------------------------------------------
-        |
-        | The plan starts NOW.
-        |
         */
 
         const activationDate =
             new Date();
 
-        let expiresAt =
-            null;
+        let expiresAt = null;
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MONTHLY
+        |--------------------------------------------------------------------------
+        */
 
         if (
             license.plan ===
@@ -672,7 +697,14 @@ exports.activateLicense = async (req, res) => {
 
         }
 
-        if (
+
+        /*
+        |--------------------------------------------------------------------------
+        | YEARLY
+        |--------------------------------------------------------------------------
+        */
+
+        else if (
             license.plan ===
             "yearly"
         ) {
@@ -688,6 +720,24 @@ exports.activateLicense = async (req, res) => {
             );
 
         }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | LIFETIME
+        |--------------------------------------------------------------------------
+        */
+
+        else if (
+            license.plan ===
+            "lifetime"
+        ) {
+
+            expiresAt =
+                null;
+
+        }
+
 
         /*
         |--------------------------------------------------------------------------
@@ -717,14 +767,16 @@ exports.activateLicense = async (req, res) => {
 
         await license.save();
 
+
         /*
         |--------------------------------------------------------------------------
-        | Generate JWT
+        | Generate activation JWT
         |--------------------------------------------------------------------------
         */
 
         const token =
             jwt.sign(
+
                 {
                     licenseId:
                         license._id.toString(),
@@ -751,7 +803,9 @@ exports.activateLicense = async (req, res) => {
                     expiresIn:
                         "30d"
                 }
+
             );
+
 
         /*
         |--------------------------------------------------------------------------
