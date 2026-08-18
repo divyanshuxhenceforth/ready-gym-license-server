@@ -299,69 +299,157 @@ exports.deactivateLicense = async (req, res) => {
 };
 
 exports.createLicense = async (req, res) => {
-  try {
-    const {
-      plan = "lifetime",
-      themeName = "Ready Gym",
-      expiresAt = null,
-    } = req.body;
+    try {
 
-    // Validate plan
-    const allowedPlans = ["monthly", "yearly", "lifetime"];
+        let {
+            plan = "lifetime",
+            themeName = "Ready Gym"
+        } = req.body;
 
-    if (!allowedPlans.includes(plan)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid plan",
-      });
+        /*
+        |--------------------------------------------------------------------------
+        | Validate plan
+        |--------------------------------------------------------------------------
+        */
+
+        const allowedPlans = [
+            "monthly",
+            "yearly",
+            "lifetime"
+        ];
+
+        if (!allowedPlans.includes(plan)) {
+
+            return res.status(400).json({
+                success: false,
+                message: "Invalid plan"
+            });
+
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Expiration is NOT calculated when creating
+        |--------------------------------------------------------------------------
+        |
+        | The subscription starts only when the license
+        | is activated.
+        |
+        */
+
+        const expiresAt = null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Generate unique license key
+        |--------------------------------------------------------------------------
+        */
+
+        let licenseKey;
+        let existingLicense;
+
+        do {
+
+            licenseKey =
+                generateLicenseKey();
+
+            existingLicense =
+                await License.findOne({
+                    licenseKey
+                });
+
+        } while (existingLicense);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create license
+        |--------------------------------------------------------------------------
+        */
+
+        const license =
+            await License.create({
+
+                licenseKey,
+
+                shopDomain:
+                    null,
+
+                themeName:
+                    themeName?.trim() ||
+                    "Ready Gym",
+
+                status:
+                    "inactive",
+
+                plan,
+
+                expiresAt,
+
+                activatedAt:
+                    null,
+
+                lastCheckedAt:
+                    null
+
+            });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Response
+        |--------------------------------------------------------------------------
+        */
+
+        return res.status(201).json({
+
+            success: true,
+
+            message:
+                "License created successfully",
+
+            license: {
+
+                id:
+                    license._id,
+
+                licenseKey:
+                    license.licenseKey,
+
+                themeName:
+                    license.themeName,
+
+                plan:
+                    license.plan,
+
+                status:
+                    license.status,
+
+                expiresAt:
+                    license.expiresAt,
+
+                activatedAt:
+                    license.activatedAt
+
+            }
+
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Create license error:",
+            error
+        );
+
+        return res.status(500).json({
+
+            success: false,
+
+            message:
+                "Failed to create license"
+
+        });
+
     }
-
-    let licenseKey;
-    let existingLicense;
-
-    // Generate unique license key
-    do {
-      licenseKey = generateLicenseKey();
-
-      existingLicense = await License.findOne({
-        licenseKey,
-      });
-    } while (existingLicense);
-
-    if (plan === "lifetime") {
-        expiresAt = null;
-    }
-
-    // Create license
-    const license = await License.create({
-      licenseKey,
-      shopDomain: null,
-      themeName,
-      status: "inactive",
-      plan,
-      expiresAt,
-    });
-
-    return res.status(201).json({
-      success: true,
-      message: "License created successfully",
-      license: {
-        id: license._id,
-        licenseKey: license.licenseKey,
-        themeName: license.themeName,
-        plan: license.plan,
-        status: license.status,
-        expiresAt: license.expiresAt,
-      },
-    });
-  } catch (error) {
-    console.error("Create license error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to create license",
-    });
-  }
 };
 
 exports.activateLicense = async (req, res) => {
