@@ -102,10 +102,10 @@ const renewYearButton =
         "renewYearButton"
     );
 
-const renewLicenseButton =
-    document.getElementById(
-        "renewLicenseButton"
-    );
+// const renewLicenseButton =
+//     document.getElementById(
+//         "renewLicenseButton"
+//     );
 
 const renewalExpiresAt =
     document.getElementById(
@@ -1886,116 +1886,116 @@ async function revokeLicense(
 |--------------------------------------------------------------------------
 */
 
-renewLicenseButton.addEventListener(
-    "click",
-    async function () {
+// renewLicenseButton.addEventListener(
+//     "click",
+//     async function () {
 
-        if (!selectedLicenseId) {
+//         if (!selectedLicenseId) {
 
-            return;
+//             return;
 
-        }
+//         }
 
-        const newDate =
-            renewalExpiresAt.value;
+//         const newDate =
+//             renewalExpiresAt.value;
 
-        if (!newDate) {
+//         if (!newDate) {
 
-            licenseModalMessage.textContent =
-                "Please select a renewal date.";
+//             licenseModalMessage.textContent =
+//                 "Please select a renewal date.";
 
-            return;
+//             return;
 
-        }
+//         }
 
-        const selectedDate =
-            new Date(
-                `${newDate}T23:59:59`
-            );
+//         const selectedDate =
+//             new Date(
+//                 `${newDate}T23:59:59`
+//             );
 
-        if (
-            selectedDate <=
-            new Date()
-        ) {
+//         if (
+//             selectedDate <=
+//             new Date()
+//         ) {
 
-            licenseModalMessage.textContent =
-                "Renewal date must be in the future.";
+//             licenseModalMessage.textContent =
+//                 "Renewal date must be in the future.";
 
-            return;
+//             return;
 
-        }
+//         }
 
-        const confirmed =
-            confirm(
-                `Renew this license until ${newDate}?`
-            );
+//         const confirmed =
+//             confirm(
+//                 `Renew this license until ${newDate}?`
+//             );
 
-        if (!confirmed) {
+//         if (!confirmed) {
 
-            return;
+//             return;
 
-        }
+//         }
 
-        renewLicenseButton.disabled =
-            true;
+//         renewLicenseButton.disabled =
+//             true;
 
-        licenseModalMessage.textContent =
-            "Renewing license...";
+//         licenseModalMessage.textContent =
+//             "Renewing license...";
 
-        try {
+//         try {
 
-            const result =
-                await apiRequest(
-                    `/api/license/admin/${selectedLicenseId}/update`,
-                    {
-                        method: "PATCH",
+//             const result =
+//                 await apiRequest(
+//                     `/api/license/admin/${selectedLicenseId}/update`,
+//                     {
+//                         method: "PATCH",
 
-                        body:
-                            JSON.stringify({
+//                         body:
+//                             JSON.stringify({
 
-                                plan:
-                                    detailPlan.value,
+//                                 plan:
+//                                     detailPlan.value,
 
-                                expiresAt:
-                                    newDate,
+//                                 expiresAt:
+//                                     newDate,
 
-                                renew:
-                                    true
+//                                 renew:
+//                                     true
 
-                            })
+//                             })
 
-                    }
-                );
+//                     }
+//                 );
 
-            licenseModalMessage.textContent =
-                result.message ||
-                "License renewed successfully.";
+//             licenseModalMessage.textContent =
+//                 result.message ||
+//                 "License renewed successfully.";
 
-            await loadLicenses();
+//             await loadLicenses();
 
-            setTimeout(
-                () => {
+//             setTimeout(
+//                 () => {
 
-                    closeLicenseModalWindow();
+//                     closeLicenseModalWindow();
 
-                },
-                700
-            );
+//                 },
+//                 700
+//             );
 
-        } catch (error) {
+//         } catch (error) {
 
-            licenseModalMessage.textContent =
-                error.message;
+//             licenseModalMessage.textContent =
+//                 error.message;
 
-        } finally {
+//         } finally {
 
-            renewLicenseButton.disabled =
-                false;
+//             renewLicenseButton.disabled =
+//                 false;
 
-        }
+//         }
 
-    }
-);
+//     }
+// );
 
 
 /*
