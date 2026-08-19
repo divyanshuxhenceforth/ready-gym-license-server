@@ -2267,3 +2267,35 @@ exports.licenseHeartbeat = async (req, res) => {
         });
     }
 };
+
+
+function createInstallationToken(license) {
+
+    return jwt.sign(
+        {
+            type: "readygym_installation",
+
+            licenseId:
+                license._id.toString(),
+
+            licenseKey:
+                license.licenseKey,
+
+            shopDomain:
+                license.shopDomain,
+
+            installationId:
+                license.installationId,
+
+            tokenVersion:
+                license.tokenVersion
+        },
+
+        process.env.JWT_SECRET,
+
+        {
+            expiresIn:
+                "30d"
+        }
+    );
+}
