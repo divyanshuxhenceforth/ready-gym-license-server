@@ -189,7 +189,9 @@ function updateAuthUI() {
         if (refreshButton) {
             refreshButton.hidden = true;
         }
+
     }
+
 }
 
 
@@ -291,6 +293,7 @@ async function apiRequest(
     }
 
     return result;
+
 }
 
 
@@ -313,6 +316,7 @@ loginButton.addEventListener(
                 "Please enter admin secret.";
 
             return;
+
         }
 
         loginButton.disabled =
@@ -425,6 +429,7 @@ async function loadLicenses() {
     );
 
     applyLicenseFilters();
+
 }
 
 
@@ -456,12 +461,11 @@ function renderStatistics(
         ).length;
 
     const suspended =
-    licenses.filter(
-        (license) =>
-            license.status ===
-            "suspended"
-    ).length;
-
+        licenses.filter(
+            (license) =>
+                license.status ===
+                "suspended"
+        ).length;
 
     const expired =
         licenses.filter(
@@ -469,8 +473,7 @@ function renderStatistics(
                 license.status ===
                 "expired"
         ).length;
-    
-    
+
     const revoked =
         licenses.filter(
             (license) =>
@@ -507,6 +510,7 @@ function renderStatistics(
         "revokedLicenses"
     ).textContent =
         revoked;
+
 }
 
 
@@ -534,6 +538,7 @@ function renderLicenses(
         `;
 
         return;
+
     }
 
     licenses.forEach(
@@ -544,12 +549,22 @@ function renderLicenses(
                     "tr"
                 );
 
+            /*
+            |--------------------------------------------------------------------------
+            | CREATED DATE
+            |--------------------------------------------------------------------------
+            |
+            | Table format:
+            |
+            | 19 Aug 26
+            |
+            |--------------------------------------------------------------------------
+            */
+
             const created =
-                license.createdAt
-                    ? new Date(
-                        license.createdAt
-                    ).toLocaleDateString()
-                    : "-";
+                formatTableDate(
+                    license.createdAt
+                );
 
             const store =
                 license.shopDomain ||
@@ -578,7 +593,9 @@ function renderLicenses(
                 </td>
 
                 <td>
-                    <span class="status status-${license.status}">
+                    <span class="status status-${escapeHtml(
+                        license.status
+                    )}">
                         ${escapeHtml(
                             license.status
                         )}
@@ -653,6 +670,7 @@ function renderLicenses(
 
                     </div>
                 </td>
+
             `;
 
             licenseTableBody.appendChild(
@@ -661,6 +679,7 @@ function renderLicenses(
 
         }
     );
+
 }
 
 
@@ -669,7 +688,6 @@ function renderLicenses(
 | CREATE LICENSE
 |--------------------------------------------------------------------------
 */
-
 
 createLicenseButton.addEventListener(
     "click",
@@ -694,7 +712,6 @@ createLicenseButton.addEventListener(
                 ).value.trim() ||
                 "Ready Gym";
 
-
             const result =
                 await apiRequest(
                     "/api/license/create",
@@ -709,13 +726,10 @@ createLicenseButton.addEventListener(
                     }
                 );
 
-
             createMessage.textContent =
                 `License created: ${result.license.licenseKey}`;
 
-
             await loadLicenses();
-
 
         } catch (error) {
 
@@ -748,7 +762,9 @@ async function suspendLicense(
             "Are you sure you want to suspend this license?"
         )
     ) {
+
         return;
+
     }
 
     try {
@@ -769,6 +785,7 @@ async function suspendLicense(
         );
 
     }
+
 }
 
 
@@ -781,6 +798,16 @@ async function suspendLicense(
 async function unsuspendLicense(
     id
 ) {
+
+    if (
+        !confirm(
+            "Are you sure you want to unsuspend this license?"
+        )
+    ) {
+
+        return;
+
+    }
 
     try {
 
@@ -800,6 +827,7 @@ async function unsuspendLicense(
         );
 
     }
+
 }
 
 
@@ -812,12 +840,6 @@ async function unsuspendLicense(
 refreshButton.addEventListener(
     "click",
     async function () {
-
-        /*
-        |--------------------------------------------------------------------------
-        | Refresh only works while logged in
-        |--------------------------------------------------------------------------
-        */
 
         if (!adminToken) {
 
@@ -895,6 +917,7 @@ function escapeHtml(
             /'/g,
             "&#039;"
         );
+
 }
 
 
@@ -945,6 +968,7 @@ function logout() {
 
     loginMessage.textContent =
         "Please login again.";
+
 }
 
 
@@ -1000,7 +1024,9 @@ function applyLicenseFilters() {
     renderLicenses(
         filtered
     );
+
 }
+
 
 licenseSearch.addEventListener(
     "input",
@@ -1040,38 +1066,8 @@ async function copyLicenseKey(
         );
 
     }
+
 }
-
-
-/*
-|--------------------------------------------------------------------------
-| ACTIVATE
-|--------------------------------------------------------------------------
-*/
-
-// async function activateLicense(
-//     id
-// ) {
-
-//     try {
-
-//         await apiRequest(
-//             `/api/license/admin/${id}/activate`,
-//             {
-//                 method: "PATCH",
-//             }
-//         );
-
-//         await loadLicenses();
-
-//     } catch (error) {
-
-//         alert(
-//             error.message
-//         );
-
-//     }
-// }
 
 
 /*
@@ -1089,7 +1085,9 @@ async function deactivateLicense(
             "Deactivate this license?"
         )
     ) {
+
         return;
+
     }
 
     try {
@@ -1110,6 +1108,7 @@ async function deactivateLicense(
         );
 
     }
+
 }
 
 
@@ -1139,6 +1138,7 @@ function viewLicense(
         );
 
         return;
+
     }
 
     selectedLicenseId =
@@ -1181,6 +1181,16 @@ function viewLicense(
             license.expiresAt
         );
 
+    /*
+    |--------------------------------------------------------------------------
+    | MODAL CREATED DATE
+    |--------------------------------------------------------------------------
+    |
+    | Modal keeps date + time.
+    |
+    |--------------------------------------------------------------------------
+    */
+
     document.getElementById(
         "detailCreatedAt"
     ).value =
@@ -1207,26 +1217,26 @@ function viewLicense(
     ).value =
         license.tokenVersion ??
         0;
+
     document.getElementById(
-    "detailInstallationId"
+        "detailInstallationId"
     ).value =
         license.installationId ||
         "Not activated";
+
     document.getElementById(
         "detailThemeVersion"
     ).value =
         license.themeVersion ||
         "Unknown";
-    
-    
+
     document.getElementById(
         "detailLastSeenAt"
     ).value =
         formatDateTime(
             license.lastSeenAt
         );
-    
-    
+
     document.getElementById(
         "detailLastIntegrityCheckAt"
     ).value =
@@ -1239,22 +1249,22 @@ function viewLicense(
 
     /*
     |--------------------------------------------------------------------------
-    | Lifetime license handling
+    | LIFETIME LICENSE HANDLING
     |--------------------------------------------------------------------------
     */
-    
+
     toggleExpirationField();
-    
+
     /*
     |--------------------------------------------------------------------------
-    | Revoked license action handling
+    | LICENSE ACTION HANDLING
     |--------------------------------------------------------------------------
     */
-    
+
     updateLicenseModalActions(
         license.status
     );
-    
+
     licenseModal.hidden =
         false;
 
@@ -1262,6 +1272,7 @@ function viewLicense(
         formatDateForInput(
             license.expiresAt
         );
+
 }
 
 
@@ -1269,6 +1280,113 @@ function viewLicense(
 |--------------------------------------------------------------------------
 | DATE FORMATTING
 |--------------------------------------------------------------------------
+*/
+
+
+/*
+|--------------------------------------------------------------------------
+| TABLE DATE
+|--------------------------------------------------------------------------
+|
+| Main table only:
+|
+| 19 Aug 26
+|
+*/
+
+function formatTableDate(
+    value
+) {
+
+    if (!value) {
+
+        return "-";
+
+    }
+
+    const date =
+        new Date(value);
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return "-";
+
+    }
+
+    return date.toLocaleDateString(
+        "en-GB",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "2-digit"
+        }
+    );
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| DATE + TIME
+|--------------------------------------------------------------------------
+|
+| Modal / monitoring fields:
+|
+| 19 Aug 26, 10:45 am
+|
+*/
+
+function formatDateTime(
+    value
+) {
+
+    if (!value) {
+
+        return "Never";
+
+    }
+
+    const date =
+        new Date(value);
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return "Never";
+
+    }
+
+    return date.toLocaleString(
+        "en-GB",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+        }
+    );
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| HTML DATE INPUT
+|--------------------------------------------------------------------------
+|
+| Example:
+|
+| 2026-08-19
+|
 */
 
 function formatDateForInput(
@@ -1314,33 +1432,7 @@ function formatDateForInput(
         );
 
     return `${year}-${month}-${day}`;
-}
 
-
-function formatDateTime(
-    value
-) {
-
-    if (!value) {
-
-        return "Never";
-
-    }
-
-    const date =
-        new Date(value);
-
-    if (
-        Number.isNaN(
-            date.getTime()
-        )
-    ) {
-
-        return "Never";
-
-    }
-
-    return date.toLocaleString();
 }
 
 
@@ -1360,7 +1452,9 @@ function closeLicenseModalWindow() {
 
     selectedLicenseId =
         null;
+
 }
+
 
 closeLicenseModal.addEventListener(
     "click",
@@ -1392,6 +1486,7 @@ detailPlan.addEventListener(
     "change",
     toggleExpirationField
 );
+
 
 function toggleExpirationField() {
 
@@ -1425,7 +1520,7 @@ function toggleExpirationField() {
 
     /*
     |--------------------------------------------------------------------------
-    | Lifetime
+    | LIFETIME
     |--------------------------------------------------------------------------
     */
 
@@ -1447,7 +1542,7 @@ function toggleExpirationField() {
 
     /*
     |--------------------------------------------------------------------------
-    | Normal plan
+    | NORMAL PLAN
     |--------------------------------------------------------------------------
     */
 
@@ -1458,7 +1553,7 @@ function toggleExpirationField() {
 
         /*
         |--------------------------------------------------------------------------
-        | Do not show renewal controls for revoked license
+        | REVOKED LICENSE
         |--------------------------------------------------------------------------
         */
 
@@ -1485,17 +1580,14 @@ function toggleExpirationField() {
 
     /*
     |--------------------------------------------------------------------------
-    | Final revoked check
-    |--------------------------------------------------------------------------
-    |
-    | This is important because `hidden` should always win.
-    |
+    | FINAL ACTION CHECK
     |--------------------------------------------------------------------------
     */
 
     updateLicenseModalActions(
         license?.status
     );
+
 }
 
 
@@ -1657,6 +1749,7 @@ async function revokeLicense(
         );
 
         return;
+
     }
 
     const confirmed =
@@ -1693,6 +1786,7 @@ async function revokeLicense(
         );
 
     }
+
 }
 
 
@@ -1911,6 +2005,7 @@ async function renewLicenseUntil(
             false;
 
     }
+
 }
 
 
@@ -2030,7 +2125,15 @@ renewYearButton.addEventListener(
 );
 
 
-function updateLicenseModalActions(status) {
+/*
+|--------------------------------------------------------------------------
+| UPDATE MODAL ACTIONS
+|--------------------------------------------------------------------------
+*/
+
+function updateLicenseModalActions(
+    status
+) {
 
     const isRevoked =
         String(
@@ -2038,6 +2141,12 @@ function updateLicenseModalActions(status) {
         ).toLowerCase() ===
         "revoked";
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | REVOKED
+    |--------------------------------------------------------------------------
+    */
 
     if (isRevoked) {
 
@@ -2057,8 +2166,15 @@ function updateLicenseModalActions(status) {
             true;
 
         return;
+
     }
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | NORMAL
+    |--------------------------------------------------------------------------
+    */
 
     renewMonthButton.hidden =
         false;
@@ -2074,4 +2190,5 @@ function updateLicenseModalActions(status) {
 
     renewalDateGroup.hidden =
         false;
+
 }
