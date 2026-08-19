@@ -33,38 +33,38 @@ function normalizeShopDomain(shopDomain) {
 /**
  * Create signed Ready Gym installation token.
  */
-// function createInstallationToken(license) {
+function createInstallationToken(license) {
 
-//     return jwt.sign(
-//         {
-//             type:
-//                 "readygym_installation",
+    return jwt.sign(
+        {
+            type:
+                "readygym_installation",
 
-//             licenseId:
-//                 license._id.toString(),
+            licenseId:
+                license._id.toString(),
 
-//             licenseKey:
-//                 license.licenseKey,
+            licenseKey:
+                license.licenseKey,
 
-//             shopDomain:
-//                 license.shopDomain,
+            shopDomain:
+                license.shopDomain,
 
-//             installationId:
-//                 license.installationId,
+            installationId:
+                license.installationId,
 
-//             tokenVersion:
-//                 Number(
-//                     license.tokenVersion || 0
-//                 )
-//         },
+            tokenVersion:
+                Number(
+                    license.tokenVersion || 0
+                )
+        },
 
-//         process.env.JWT_SECRET,
+        process.env.JWT_SECRET,
 
-//         {
-//             expiresIn: "30d"
-//         }
-//     );
-// }
+        {
+            expiresIn: "30d"
+        }
+    );
+}
 
 
 /**
@@ -2738,9 +2738,11 @@ exports.publicIntegrityCheck = async (
 exports.licenseHeartbeat = async (req, res) => {
     try {
 
-        /* ---------------------------------------------------------
-         | AUTHORIZATION HEADER
-         |--------------------------------------------------------- */
+        /*
+        |--------------------------------------------------------------------------
+        | AUTHORIZATION HEADER
+        |--------------------------------------------------------------------------
+        */
 
         const authHeader =
             req.headers.authorization;
@@ -2757,12 +2759,22 @@ exports.licenseHeartbeat = async (req, res) => {
             });
         }
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | GET TOKEN
+        |--------------------------------------------------------------------------
+        */
+
         const token =
             authHeader.substring(7);
 
-        /* ---------------------------------------------------------
-         | VERIFY JWT
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | VERIFY TOKEN
+        |--------------------------------------------------------------------------
+        */
 
         let decoded;
 
@@ -2783,14 +2795,18 @@ exports.licenseHeartbeat = async (req, res) => {
             });
         }
 
-        /* ---------------------------------------------------------
-         | TOKEN TYPE
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | TOKEN TYPE
+        |--------------------------------------------------------------------------
+        */
 
         if (
             decoded.type !==
             "readygym_installation"
         ) {
+
             return res.status(401).json({
                 success: false,
                 valid: false,
@@ -2799,31 +2815,35 @@ exports.licenseHeartbeat = async (req, res) => {
             });
         }
 
-        /* ---------------------------------------------------------
-         | REQUEST DATA
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | REQUEST DATA
+        |--------------------------------------------------------------------------
+        */
 
         const {
             shopDomain,
-            installationId,
             themeVersion
         } = req.body;
 
-        if (
-            !shopDomain ||
-            !installationId
-        ) {
+
+        if (!shopDomain) {
+
             return res.status(400).json({
                 success: false,
                 valid: false,
                 message:
-                    "Installation information is required."
+                    "Shop domain is required."
             });
         }
 
-        /* ---------------------------------------------------------
-         | NORMALIZE SHOP DOMAIN
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | NORMALIZE SHOP
+        |--------------------------------------------------------------------------
+        */
 
         const normalizedShop =
             shopDomain
@@ -2838,31 +2858,21 @@ exports.licenseHeartbeat = async (req, res) => {
                     ""
                 );
 
-        /* ---------------------------------------------------------
-         | TOKEN LICENSE MATCH
-         |--------------------------------------------------------- */
 
-        if (
-            !decoded.licenseId
-        ) {
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Invalid installation token."
-            });
-        }
-
-        /* ---------------------------------------------------------
-         | FIND LICENSE
-         |--------------------------------------------------------- */
+        /*
+        |--------------------------------------------------------------------------
+        | FIND LICENSE BY TOKEN LICENSE ID
+        |--------------------------------------------------------------------------
+        */
 
         const license =
             await License.findById(
                 decoded.licenseId
             );
 
+
         if (!license) {
+
             return res.status(404).json({
                 success: false,
                 valid: false,
@@ -2871,14 +2881,18 @@ exports.licenseHeartbeat = async (req, res) => {
             });
         }
 
-        /* ---------------------------------------------------------
-         | LICENSE KEY MATCH
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | LICENSE KEY MATCH
+        |--------------------------------------------------------------------------
+        */
 
         if (
             license.licenseKey !==
             decoded.licenseKey
         ) {
+
             return res.status(403).json({
                 success: false,
                 valid: false,
@@ -2887,33 +2901,19 @@ exports.licenseHeartbeat = async (req, res) => {
             });
         }
 
-        /* ---------------------------------------------------------
-         | SHOP MATCH
-         |--------------------------------------------------------- */
 
-        if (
-            license.shopDomain !==
-            normalizedShop
-        ) {
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "Store mismatch."
-            });
-        }
-
-        /* ---------------------------------------------------------
-         | INSTALLATION MATCH
-         |--------------------------------------------------------- */
+        /*
+        |--------------------------------------------------------------------------
+        | INSTALLATION ID MATCH
+        |--------------------------------------------------------------------------
+        */
 
         if (
             !license.installationId ||
             license.installationId !==
-            installationId ||
-            decoded.installationId !==
-            installationId
+            decoded.installationId
         ) {
+
             return res.status(403).json({
                 success: false,
                 valid: false,
@@ -2922,18 +2922,48 @@ exports.licenseHeartbeat = async (req, res) => {
             });
         }
 
-        /* ---------------------------------------------------------
-         | TOKEN VERSION
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | SHOP MATCH
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !license.shopDomain ||
+            license.shopDomain !==
+            normalizedShop
+        ) {
+
+            return res.status(403).json({
+                success: false,
+                valid: false,
+                message:
+                    "Store mismatch."
+            });
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | TOKEN VERSION
+        |--------------------------------------------------------------------------
+        |
+        | If admin suspends, revokes, deactivates, or otherwise
+        | invalidates the installation, tokenVersion changes.
+        |
+        |--------------------------------------------------------------------------
+        */
 
         if (
             Number(
-                decoded.tokenVersion || 0
+                decoded.tokenVersion
             ) !==
             Number(
                 license.tokenVersion || 0
             )
         ) {
+
             return res.status(403).json({
                 success: false,
                 valid: false,
@@ -2942,14 +2972,18 @@ exports.licenseHeartbeat = async (req, res) => {
             });
         }
 
-        /* ---------------------------------------------------------
-         | REVOKED
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | REVOKED
+        |--------------------------------------------------------------------------
+        */
 
         if (
             license.status ===
             "revoked"
         ) {
+
             return res.json({
                 success: true,
                 valid: false,
@@ -2957,14 +2991,18 @@ exports.licenseHeartbeat = async (req, res) => {
             });
         }
 
-        /* ---------------------------------------------------------
-         | SUSPENDED
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | SUSPENDED
+        |--------------------------------------------------------------------------
+        */
 
         if (
             license.status ===
             "suspended"
         ) {
+
             return res.json({
                 success: true,
                 valid: false,
@@ -2972,16 +3010,21 @@ exports.licenseHeartbeat = async (req, res) => {
             });
         }
 
-        /* ---------------------------------------------------------
-         | EXPIRATION
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | EXPIRATION
+        |--------------------------------------------------------------------------
+        */
 
         const expired =
             await checkLicenseExpiry(
                 license
             );
 
+
         if (expired) {
+
             return res.json({
                 success: true,
                 valid: false,
@@ -2989,14 +3032,18 @@ exports.licenseHeartbeat = async (req, res) => {
             });
         }
 
-        /* ---------------------------------------------------------
-         | ACTIVE STATUS
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | ACTIVE LICENSE REQUIRED
+        |--------------------------------------------------------------------------
+        */
 
         if (
             license.status !==
             "active"
         ) {
+
             return res.json({
                 success: true,
                 valid: false,
@@ -3005,9 +3052,12 @@ exports.licenseHeartbeat = async (req, res) => {
             });
         }
 
-        /* ---------------------------------------------------------
-         | UPDATE INSTALLATION ACTIVITY
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | UPDATE INSTALLATION ACTIVITY
+        |--------------------------------------------------------------------------
+        */
 
         const now =
             new Date();
@@ -3018,16 +3068,19 @@ exports.licenseHeartbeat = async (req, res) => {
         license.lastCheckedAt =
             now;
 
-        if (themeVersion) {
-            license.themeVersion =
-                themeVersion;
-        }
+        license.themeVersion =
+            themeVersion ||
+            license.themeVersion ||
+            null;
 
         await license.save();
 
-        /* ---------------------------------------------------------
-         | RESPONSE
-         |--------------------------------------------------------- */
+
+        /*
+        |--------------------------------------------------------------------------
+        | SUCCESS
+        |--------------------------------------------------------------------------
+        */
 
         return res.json({
             success: true,
@@ -3036,8 +3089,7 @@ exports.licenseHeartbeat = async (req, res) => {
                 license.status,
 
             themeVersion:
-                license.themeVersion ||
-                null,
+                license.themeVersion,
 
             expiresAt:
                 license.expiresAt,
