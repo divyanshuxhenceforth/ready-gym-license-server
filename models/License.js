@@ -20,6 +20,20 @@ const licenseSchema = new mongoose.Schema(
             default: null,
             index: true
         },
+        themeVersion: {
+            type: String,
+            default: null
+        },
+        
+        lastSeenAt: {
+            type: Date,
+            default: null
+        },
+        
+        lastIntegrityCheckAt: {
+            type: Date,
+            default: null
+        },
 
         themeName: {
             type: String,
