@@ -2550,26 +2550,18 @@ exports.publicCheckLicense = async (
 |--------------------------------------------------------------------------
 */
 
-exports.publicIntegrityCheck = async (
-    req,
-    res
-) => {
-
+exports.publicIntegrityCheck = async (req, res) => {
     try {
 
         const {
             shopDomain,
-            installationId,
             components
         } = req.body;
 
-
         if (
             !shopDomain ||
-            !installationId ||
             !components
         ) {
-
             return res.status(400).json({
                 success: false,
                 valid: false,
@@ -2578,42 +2570,151 @@ exports.publicIntegrityCheck = async (
             });
         }
 
+        const token =
+            getBearerToken(req);
+
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                valid: false,
+                message:
+                    "Installation token required."
+            });
+        }
+
+        let decoded;
+
+        try {
+
+            decoded =
+                verifyInstallationToken(
+                    token
+                );
+
+        } catch (error) {
+
+            return res.status(401).json({
+                success: false,
+                valid: false,
+                message:
+                    "Invalid or expired installation token."
+            });
+        }
 
         const normalizedShop =
             normalizeShopDomain(
                 shopDomain
             );
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | FIND INSTALLATION
-        |--------------------------------------------------------------------------
-        */
-
         const license =
-            await License.findOne({
-
-                shopDomain:
-                    normalizedShop,
-
-                installationId:
-                    installationId,
-
-                status:
-                    "active"
-
-            });
-
+            await License.findById(
+                decoded.licenseId
+            );
 
         if (!license) {
-
             return res.json({
                 success: true,
                 valid: false
             });
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | LICENSE KEY MATCH
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            license.licenseKey !==
+            decoded.licenseKey
+        ) {
+            return res.json({
+                success: true,
+                valid: false
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | INSTALLATION MATCH
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !license.installationId ||
+            license.installationId !==
+                decoded.installationId
+        ) {
+            return res.json({
+                success: true,
+                valid: false
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SHOP MATCH
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !license.shopDomain ||
+            license.shopDomain !==
+                normalizedShop
+        ) {
+            return res.json({
+                success: true,
+                valid: false
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | TOKEN VERSION
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            Number(decoded.tokenVersion) !==
+            Number(license.tokenVersion || 0)
+        ) {
+            return res.json({
+                success: true,
+                valid: false
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | REVOKED
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            license.status ===
+            "revoked"
+        ) {
+            return res.json({
+                success: true,
+                valid: false
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SUSPENDED
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            license.status ===
+            "suspended"
+        ) {
+            return res.json({
+                success: true,
+                valid: false
+            });
+        }
 
         /*
         |--------------------------------------------------------------------------
@@ -2626,71 +2727,80 @@ exports.publicIntegrityCheck = async (
                 license
             );
 
-
         if (expired) {
-
             return res.json({
                 success: true,
                 valid: false
             });
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | ACTIVE REQUIRED
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            license.status !==
+            "active"
+        ) {
+            return res.json({
+                success: true,
+                valid: false
+            });
+        }
 
         /*
         |--------------------------------------------------------------------------
-        | REQUIRED COMPONENTS
+        | REQUIRED THEME COMPONENTS
         |--------------------------------------------------------------------------
         */
 
         const requiredComponents = [
-
             "rg-license-js",
-
             "rg-license-lock",
-
             "rg-license-marker"
-
         ];
-
 
         const missingComponents =
             requiredComponents.filter(
-                component =>
-                    components[
-                        component
-                    ] !== true
+                (component) =>
+                    components[component] !== true
             );
-
 
         if (
             missingComponents.length > 0
         ) {
 
+            license.lastCheckedAt =
+                new Date();
+
+            license.lastIntegrityCheckAt =
+                new Date();
+
+            license.lastSeenAt =
+                new Date();
+
+            await license.save();
+
             return res.json({
-
                 success: true,
-
                 valid: false,
-
                 reason:
                     "theme_integrity_failed",
-
                 missing:
                     missingComponents
-
             });
         }
 
-
         /*
         |--------------------------------------------------------------------------
-        | UPDATE INTEGRITY ACTIVITY
+        | SUCCESS
         |--------------------------------------------------------------------------
         */
 
         const now =
             new Date();
-
 
         license.lastCheckedAt =
             now;
@@ -2701,9 +2811,7 @@ exports.publicIntegrityCheck = async (
         license.lastSeenAt =
             now;
 
-
         await license.save();
-
 
         return res.json({
             success: true,
