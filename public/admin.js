@@ -1216,6 +1216,27 @@ function viewLicense(
     ).value =
         license.installationId ||
         "Not activated";
+    document.getElementById(
+        "detailThemeVersion"
+    ).value =
+        license.themeVersion ||
+        "Unknown";
+    
+    
+    document.getElementById(
+        "detailLastSeenAt"
+    ).value =
+        formatDateTime(
+            license.lastSeenAt
+        );
+    
+    
+    document.getElementById(
+        "detailLastIntegrityCheckAt"
+    ).value =
+        formatDateTime(
+            license.lastIntegrityCheckAt
+        );
 
     licenseModalMessage.textContent =
         "";
