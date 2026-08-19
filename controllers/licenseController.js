@@ -2,13 +2,8 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 
 const License = require("../models/License");
-
-const generateLicenseKey =
-    require("../utils/generateLicenseKey");
-
-const checkLicenseExpiry =
-    require("../utils/checkLicenseExpiry");
-
+const generateLicenseKey = require("../utils/generateLicenseKey");
+const checkLicenseExpiry = require("../utils/checkLicenseExpiry");
 
 /*
 |--------------------------------------------------------------------------
@@ -16,11 +11,13 @@ const checkLicenseExpiry =
 |--------------------------------------------------------------------------
 */
 
-
 /**
  * Normalize Shopify store domain.
  */
 function normalizeShopDomain(shopDomain) {
+    if (!shopDomain) {
+        return "";
+    }
 
     return shopDomain
         .trim()
@@ -29,33 +26,25 @@ function normalizeShopDomain(shopDomain) {
         .replace(/\/+$/, "");
 }
 
-
 /**
  * Create signed Ready Gym installation token.
  */
 function createInstallationToken(license) {
-
     return jwt.sign(
         {
-            type:
-                "readygym_installation",
+            type: "readygym_installation",
 
-            licenseId:
-                license._id.toString(),
+            licenseId: license._id.toString(),
 
-            licenseKey:
-                license.licenseKey,
+            licenseKey: license.licenseKey,
 
-            shopDomain:
-                license.shopDomain,
+            shopDomain: license.shopDomain,
 
-            installationId:
-                license.installationId,
+            installationId: license.installationId,
 
-            tokenVersion:
-                Number(
-                    license.tokenVersion || 0
-                )
+            tokenVersion: Number(
+                license.tokenVersion || 0
+            )
         },
 
         process.env.JWT_SECRET,
@@ -66,12 +55,10 @@ function createInstallationToken(license) {
     );
 }
 
-
 /**
  * Extract Bearer token.
  */
 function getBearerToken(req) {
-
     const authHeader =
         req.headers.authorization;
 
@@ -82,26 +69,23 @@ function getBearerToken(req) {
         return null;
     }
 
-    return authHeader.substring(7);
+    return authHeader.substring(7).trim();
 }
-
 
 /**
  * Verify Ready Gym installation token.
  */
 function verifyInstallationToken(token) {
-
     if (!token) {
         throw new Error(
             "Installation token is required"
         );
     }
 
-    const decoded =
-        jwt.verify(
-            token,
-            process.env.JWT_SECRET
-        );
+    const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET
+    );
 
     if (
         decoded.type !==
@@ -115,6 +99,158 @@ function verifyInstallationToken(token) {
     return decoded;
 }
 
+/**
+ * Validate installation token against license.
+ *
+ * This helper checks:
+ * - license exists
+ * - license key
+ * - installation ID
+ * - shop
+ * - token version
+ */
+async function getAuthenticatedLicense(
+    req
+) {
+    const token =
+        getBearerToken(req);
+
+    if (!token) {
+        const error =
+            new Error(
+                "Authorization token is required"
+            );
+
+        error.statusCode = 401;
+
+        throw error;
+    }
+
+    let decoded;
+
+    try {
+        decoded =
+            verifyInstallationToken(
+                token
+            );
+    } catch (error) {
+        const authError =
+            new Error(
+                "Invalid or expired activation token"
+            );
+
+        authError.statusCode = 401;
+
+        throw authError;
+    }
+
+    const license =
+        await License.findById(
+            decoded.licenseId
+        );
+
+    if (!license) {
+        const error =
+            new Error(
+                "License not found"
+            );
+
+        error.statusCode = 404;
+
+        throw error;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | LICENSE KEY
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        license.licenseKey !==
+        decoded.licenseKey
+    ) {
+        const error =
+            new Error(
+                "Invalid license token"
+            );
+
+        error.statusCode = 403;
+
+        throw error;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | INSTALLATION
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        !license.installationId ||
+        license.installationId !==
+            decoded.installationId
+    ) {
+        const error =
+            new Error(
+                "Installation mismatch"
+            );
+
+        error.statusCode = 403;
+
+        throw error;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SHOP
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        !license.shopDomain ||
+        license.shopDomain !==
+            decoded.shopDomain
+    ) {
+        const error =
+            new Error(
+                "License is not valid for this store"
+            );
+
+        error.statusCode = 403;
+
+        throw error;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | TOKEN VERSION
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        Number(
+            license.tokenVersion || 0
+        ) !==
+        Number(
+            decoded.tokenVersion || 0
+        )
+    ) {
+        const error =
+            new Error(
+                "Activation token has been revoked"
+            );
+
+        error.statusCode = 401;
+
+        throw error;
+    }
+
+    return {
+        license,
+        decoded
+    };
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -126,101 +262,14 @@ exports.checkLicense = async (
     req,
     res
 ) => {
-
     try {
-
-        const token =
-            getBearerToken(req);
-
-
-        if (!token) {
-
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Authorization token is required"
-            });
-        }
-
-
-        let decoded;
-
-        try {
-
-            decoded =
-                verifyInstallationToken(
-                    token
-                );
-
-        } catch (error) {
-
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Invalid or expired activation token"
-            });
-        }
-
-
-        const license =
-            await License.findById(
-                decoded.licenseId
+        const {
+            license,
+            decoded
+        } =
+            await getAuthenticatedLicense(
+                req
             );
-
-
-        if (!license) {
-
-            return res.status(404).json({
-                success: false,
-                valid: false,
-                message:
-                    "License not found"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | LICENSE KEY MATCH
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.licenseKey !==
-            decoded.licenseKey
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "Invalid license token"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | INSTALLATION MATCH
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            !license.installationId ||
-            license.installationId !==
-                decoded.installationId
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "Installation mismatch"
-            });
-        }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -232,7 +281,6 @@ exports.checkLicense = async (
             license.status ===
             "revoked"
         ) {
-
             return res.status(403).json({
                 success: false,
                 valid: false,
@@ -240,7 +288,6 @@ exports.checkLicense = async (
                     "License is revoked"
             });
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -252,7 +299,6 @@ exports.checkLicense = async (
             license.status ===
             "suspended"
         ) {
-
             return res.status(403).json({
                 success: false,
                 valid: false,
@@ -261,78 +307,30 @@ exports.checkLicense = async (
             });
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | TOKEN VERSION
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            Number(
-                license.tokenVersion || 0
-            ) !==
-            Number(
-                decoded.tokenVersion || 0
-            )
-        ) {
-
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Activation token has been revoked"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | SHOP MATCH
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            !license.shopDomain ||
-            license.shopDomain !==
-                decoded.shopDomain
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "License is not valid for this store"
-            });
-        }
-
-
         /*
         |--------------------------------------------------------------------------
         | EXPIRATION
         |--------------------------------------------------------------------------
         */
 
-        const isExpired =
+        const expired =
             await checkLicenseExpiry(
                 license
             );
 
-
-        if (isExpired) {
-
+        if (expired) {
             return res.status(403).json({
                 success: false,
                 valid: false,
+                status: "expired",
                 message:
                     "License has expired"
             });
         }
 
-
         /*
         |--------------------------------------------------------------------------
-        | STATUS
+        | ACTIVE REQUIRED
         |--------------------------------------------------------------------------
         */
 
@@ -340,19 +338,19 @@ exports.checkLicense = async (
             license.status !==
             "active"
         ) {
-
             return res.status(403).json({
                 success: false,
                 valid: false,
+                status:
+                    license.status,
                 message:
                     `License is ${license.status}`
             });
         }
 
-
         /*
         |--------------------------------------------------------------------------
-        | UPDATE LAST CHECK
+        | UPDATE ACTIVITY
         |--------------------------------------------------------------------------
         */
 
@@ -367,18 +365,13 @@ exports.checkLicense = async (
 
         await license.save();
 
-
         return res.json({
-
             success: true,
-
             valid: true,
-
             message:
                 "License is valid",
 
             license: {
-
                 themeName:
                     license.themeName,
 
@@ -393,27 +386,26 @@ exports.checkLicense = async (
 
                 expiresAt:
                     license.expiresAt
-
             }
-
         });
 
     } catch (error) {
-
         console.error(
             "Check license error:",
             error
         );
 
-        return res.status(500).json({
+        return res.status(
+            error.statusCode || 500
+        ).json({
             success: false,
             valid: false,
             message:
+                error.message ||
                 "License verification failed"
         });
     }
 };
-
 
 /*
 |--------------------------------------------------------------------------
@@ -421,193 +413,80 @@ exports.checkLicense = async (
 |--------------------------------------------------------------------------
 */
 
-exports.deactivateLicense = async (
-    req,
-    res
-) => {
-
-    try {
-
-        const token =
-            getBearerToken(req);
-
-
-        if (!token) {
-
-            return res.status(401).json({
-                success: false,
-                message:
-                    "Authorization token is required"
-            });
-        }
-
-
-        let decoded;
-
+exports.deactivateLicense =
+    async (req, res) => {
         try {
-
-            decoded =
-                verifyInstallationToken(
-                    token
+            const {
+                license,
+                decoded
+            } =
+                await getAuthenticatedLicense(
+                    req
                 );
 
-        } catch (error) {
+            /*
+            |--------------------------------------------------------------------------
+            | RELEASE LICENSE
+            |--------------------------------------------------------------------------
+            */
 
-            return res.status(401).json({
-                success: false,
+            license.shopDomain =
+                null;
+
+            license.installationId =
+                null;
+
+            license.status =
+                "inactive";
+
+            /*
+            |--------------------------------------------------------------------------
+            | INVALIDATE TOKEN
+            |--------------------------------------------------------------------------
+            */
+
+            license.tokenVersion =
+                Number(
+                    license.tokenVersion ||
+                        0
+                ) + 1;
+
+            license.lastCheckedAt =
+                new Date();
+
+            license.lastSeenAt =
+                null;
+
+            license.lastIntegrityCheckAt =
+                null;
+
+            license.themeVersion =
+                null;
+
+            await license.save();
+
+            return res.json({
+                success: true,
                 message:
-                    "Invalid or expired activation token"
+                    "License deactivated successfully"
             });
-        }
 
-
-        const license =
-            await License.findById(
-                decoded.licenseId
+        } catch (error) {
+            console.error(
+                "Deactivate license error:",
+                error
             );
 
-
-        if (!license) {
-
-            return res.status(404).json({
+            return res.status(
+                error.statusCode || 500
+            ).json({
                 success: false,
                 message:
-                    "License not found"
+                    error.message ||
+                    "License deactivation failed"
             });
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | LICENSE KEY
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.licenseKey !==
-            decoded.licenseKey
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                message:
-                    "Invalid license token"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | INSTALLATION
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.installationId !==
-            decoded.installationId
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                message:
-                    "Installation mismatch"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | SHOP
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.shopDomain !==
-            decoded.shopDomain
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                message:
-                    "License store mismatch"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | TOKEN VERSION
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            Number(
-                license.tokenVersion || 0
-            ) !==
-            Number(
-                decoded.tokenVersion || 0
-            )
-        ) {
-
-            return res.status(401).json({
-                success: false,
-                message:
-                    "Activation token has been revoked"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | RELEASE LICENSE
-        |--------------------------------------------------------------------------
-        */
-
-        license.shopDomain =
-            null;
-
-        license.installationId =
-            null;
-
-        license.status =
-            "inactive";
-
-        license.tokenVersion =
-            Number(
-                license.tokenVersion || 0
-            ) + 1;
-
-        license.lastCheckedAt =
-            new Date();
-
-        license.lastSeenAt =
-            null;
-
-
-        await license.save();
-
-
-        return res.json({
-            success: true,
-            message:
-                "License deactivated successfully"
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Deactivate license error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message:
-                "License deactivation failed"
-        });
-    }
-};
-
+    };
 
 /*
 |--------------------------------------------------------------------------
@@ -619,20 +498,11 @@ exports.createLicense = async (
     req,
     res
 ) => {
-
     try {
-
-        let {
+        const {
             plan = "lifetime",
             themeName = "Ready Gym"
         } = req.body;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | VALIDATE PLAN
-        |--------------------------------------------------------------------------
-        */
 
         const allowedPlans = [
             "monthly",
@@ -640,13 +510,11 @@ exports.createLicense = async (
             "lifetime"
         ];
 
-
         if (
             !allowedPlans.includes(
                 plan
             )
         ) {
-
             return res.status(400).json({
                 success: false,
                 message:
@@ -654,29 +522,16 @@ exports.createLicense = async (
             });
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | EXPIRATION STARTS AT ACTIVATION
         |--------------------------------------------------------------------------
         */
 
-        const expiresAt =
-            null;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | GENERATE UNIQUE LICENSE KEY
-        |--------------------------------------------------------------------------
-        */
-
         let licenseKey;
         let existingLicense;
 
-
         do {
-
             licenseKey =
                 generateLicenseKey();
 
@@ -684,21 +539,16 @@ exports.createLicense = async (
                 await License.findOne({
                     licenseKey
                 });
-
-        } while (
-            existingLicense
-        );
-
+        } while (existingLicense);
 
         /*
         |--------------------------------------------------------------------------
-        | CREATE LICENSE
+        | CREATE
         |--------------------------------------------------------------------------
         */
 
         const license =
             await License.create({
-
                 licenseKey,
 
                 shopDomain:
@@ -716,7 +566,8 @@ exports.createLicense = async (
 
                 plan,
 
-                expiresAt,
+                expiresAt:
+                    null,
 
                 activatedAt:
                     null,
@@ -735,25 +586,15 @@ exports.createLicense = async (
 
                 tokenVersion:
                     0
-
             });
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | RESPONSE
-        |--------------------------------------------------------------------------
-        */
-
         return res.status(201).json({
-
             success: true,
 
             message:
                 "License created successfully",
 
             license: {
-
                 id:
                     license._id,
 
@@ -774,13 +615,10 @@ exports.createLicense = async (
 
                 activatedAt:
                     license.activatedAt
-
             }
-
         });
 
     } catch (error) {
-
         console.error(
             "Create license error:",
             error
@@ -794,405 +632,332 @@ exports.createLicense = async (
     }
 };
 
-
 /*
 |--------------------------------------------------------------------------
 | ACTIVATE LICENSE
 |--------------------------------------------------------------------------
 */
 
-exports.activateLicense = async (
-    req,
-    res
-) => {
-
-    try {
-
-        const {
-            licenseKey,
-            shopDomain
-        } = req.body;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | VALIDATE REQUEST
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            !licenseKey ||
-            !shopDomain
-        ) {
-
-            return res.status(400).json({
-                success: false,
-                message:
-                    "License key and shop domain are required"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | NORMALIZE
-        |--------------------------------------------------------------------------
-        */
-
-        const normalizedShop =
-            normalizeShopDomain(
+exports.activateLicense =
+    async (req, res) => {
+        try {
+            const {
+                licenseKey,
                 shopDomain
-            );
+            } = req.body;
 
-        const normalizedKey =
-            licenseKey.trim();
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | FIND LICENSE
-        |--------------------------------------------------------------------------
-        */
-
-        const license =
-            await License.findOne({
-                licenseKey:
-                    normalizedKey
-            });
-
-
-        if (!license) {
-
-            return res.status(404).json({
-                success: false,
-                message:
-                    "License not found"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | REVOKED
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status ===
-            "revoked"
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                message:
-                    "License is revoked"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | SUSPENDED
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status ===
-            "suspended"
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                message:
-                    "License is suspended"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | ALREADY ACTIVE
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status ===
-            "active"
-        ) {
+            /*
+            |--------------------------------------------------------------------------
+            | VALIDATE
+            |--------------------------------------------------------------------------
+            */
 
             if (
-                license.shopDomain ===
-                normalizedShop
+                !licenseKey ||
+                !shopDomain
             ) {
-
                 return res.status(400).json({
                     success: false,
                     message:
-                        "License is already active on this store"
+                        "License key and shop domain are required"
                 });
             }
 
+            const normalizedShop =
+                normalizeShopDomain(
+                    shopDomain
+                );
 
-            return res.status(403).json({
-                success: false,
-                message:
-                    "License is already activated on another store"
-            });
-        }
+            const normalizedKey =
+                licenseKey
+                    .trim()
+                    .toUpperCase();
 
+            /*
+            |--------------------------------------------------------------------------
+            | FIND LICENSE
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | ONLY INACTIVE LICENSES CAN ACTIVATE
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status !==
-            "inactive"
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                message:
-                    `License is ${license.status}`
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | CHECK WHETHER STORE ALREADY HAS LICENSE
-        |--------------------------------------------------------------------------
-        */
-
-        const existingLicense =
-            await License.findOne({
-                shopDomain:
-                    normalizedShop,
-
-                licenseKey: {
-                    $ne:
+            const license =
+                await License.findOne({
+                    licenseKey:
                         normalizedKey
+                });
+
+            if (!license) {
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        "License not found"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | REVOKED
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                license.status ===
+                "revoked"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "License is revoked"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | SUSPENDED
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                license.status ===
+                "suspended"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "License is suspended"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | ALREADY ACTIVE
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                license.status ===
+                "active"
+            ) {
+                if (
+                    license.shopDomain ===
+                    normalizedShop
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "License is already active on this store"
+                    });
+                }
+
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "License is already activated on another store"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | ONLY INACTIVE LICENSES
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                license.status !==
+                "inactive"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        `License is ${license.status}`
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | CHECK STORE ALREADY HAS LICENSE
+            |--------------------------------------------------------------------------
+            */
+
+            const existingLicense =
+                await License.findOne({
+                    shopDomain:
+                        normalizedShop,
+
+                    licenseKey: {
+                        $ne:
+                            normalizedKey
+                    },
+
+                    status: {
+                        $in: [
+                            "active",
+                            "suspended"
+                        ]
+                    }
+                });
+
+            if (existingLicense) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "This store already has another license activated"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | GENERATE INSTALLATION ID
+            |--------------------------------------------------------------------------
+            */
+
+            const installationId =
+                `INST-${crypto
+                    .randomBytes(8)
+                    .toString("hex")
+                    .toUpperCase()}`;
+
+            /*
+            |--------------------------------------------------------------------------
+            | CALCULATE EXPIRATION
+            |--------------------------------------------------------------------------
+            */
+
+            const activationDate =
+                new Date();
+
+            let expiresAt =
+                null;
+
+            if (
+                license.plan ===
+                "monthly"
+            ) {
+                expiresAt =
+                    new Date(
+                        activationDate
+                    );
+
+                expiresAt.setMonth(
+                    expiresAt.getMonth() +
+                        1
+                );
+            }
+
+            if (
+                license.plan ===
+                "yearly"
+            ) {
+                expiresAt =
+                    new Date(
+                        activationDate
+                    );
+
+                expiresAt.setFullYear(
+                    expiresAt.getFullYear() +
+                        1
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | ACTIVATE
+            |--------------------------------------------------------------------------
+            */
+
+            license.shopDomain =
+                normalizedShop;
+
+            license.installationId =
+                installationId;
+
+            license.status =
+                "active";
+
+            license.activatedAt =
+                activationDate;
+
+            license.expiresAt =
+                expiresAt;
+
+            license.lastCheckedAt =
+                activationDate;
+
+            license.lastSeenAt =
+                activationDate;
+
+            license.lastIntegrityCheckAt =
+                null;
+
+            license.themeVersion =
+                null;
+
+            license.tokenVersion =
+                Number(
+                    license.tokenVersion ||
+                        0
+                ) + 1;
+
+            await license.save();
+
+            /*
+            |--------------------------------------------------------------------------
+            | CREATE TOKEN
+            |--------------------------------------------------------------------------
+            */
+
+            const token =
+                createInstallationToken(
+                    license
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | RESPONSE
+            |--------------------------------------------------------------------------
+            */
+
+            return res.json({
+                success: true,
+
+                message:
+                    "License activated successfully",
+
+                license: {
+                    themeName:
+                        license.themeName,
+
+                    plan:
+                        license.plan,
+
+                    shopDomain:
+                        license.shopDomain,
+
+                    installationId:
+                        license.installationId,
+
+                    activatedAt:
+                        license.activatedAt,
+
+                    expiresAt:
+                        license.expiresAt
                 },
 
-                status: {
-                    $in: [
-                        "active",
-                        "suspended"
-                    ]
-                }
+                token
             });
 
+        } catch (error) {
+            console.error(
+                "Activate license error:",
+                error
+            );
 
-        if (
-            existingLicense
-        ) {
-
-            return res.status(403).json({
+            return res.status(500).json({
                 success: false,
                 message:
-                    "This store already has another license activated"
+                    "License activation failed"
             });
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | GENERATE INSTALLATION ID
-        |--------------------------------------------------------------------------
-        */
-
-        const installationId =
-            `INST-${crypto
-                .randomBytes(8)
-                .toString("hex")
-                .toUpperCase()}`;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | START PLAN
-        |--------------------------------------------------------------------------
-        */
-
-        const activationDate =
-            new Date();
-
-        let expiresAt =
-            null;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | MONTHLY
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.plan ===
-            "monthly"
-        ) {
-
-            expiresAt =
-                new Date(
-                    activationDate
-                );
-
-            expiresAt.setMonth(
-                expiresAt.getMonth() +
-                1
-            );
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | YEARLY
-        |--------------------------------------------------------------------------
-        */
-
-        else if (
-            license.plan ===
-            "yearly"
-        ) {
-
-            expiresAt =
-                new Date(
-                    activationDate
-                );
-
-            expiresAt.setFullYear(
-                expiresAt.getFullYear() +
-                1
-            );
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | LIFETIME
-        |--------------------------------------------------------------------------
-        */
-
-        else if (
-            license.plan ===
-            "lifetime"
-        ) {
-
-            expiresAt =
-                null;
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | ACTIVATE
-        |--------------------------------------------------------------------------
-        */
-
-        license.shopDomain =
-            normalizedShop;
-
-        license.installationId =
-            installationId;
-
-        license.status =
-            "active";
-
-        license.activatedAt =
-            activationDate;
-
-        license.expiresAt =
-            expiresAt;
-
-        license.lastCheckedAt =
-            activationDate;
-
-        license.lastSeenAt =
-            activationDate;
-
-        license.lastIntegrityCheckAt =
-            null;
-
-        license.themeVersion =
-            null;
-
-        license.tokenVersion =
-            Number(
-                license.tokenVersion || 0
-            ) + 1;
-
-
-        await license.save();
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | CREATE SIGNED INSTALLATION TOKEN
-        |--------------------------------------------------------------------------
-        */
-
-        const token =
-            createInstallationToken(
-                license
-            );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | RESPONSE
-        |--------------------------------------------------------------------------
-        */
-
-        return res.json({
-
-            success: true,
-
-            message:
-                "License activated successfully",
-
-            license: {
-
-                themeName:
-                    license.themeName,
-
-                plan:
-                    license.plan,
-
-                shopDomain:
-                    license.shopDomain,
-
-                installationId:
-                    license.installationId,
-
-                activatedAt:
-                    license.activatedAt,
-
-                expiresAt:
-                    license.expiresAt
-
-            },
-
-            token
-
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Activate license error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message:
-                "License activation failed"
-        });
-    }
-};
-
+    };
 
 /*
 |--------------------------------------------------------------------------
@@ -1200,224 +965,287 @@ exports.activateLicense = async (
 |--------------------------------------------------------------------------
 */
 
-exports.getLicenses = async (
-    req,
-    res
-) => {
+exports.getLicenses =
+    async (req, res) => {
+        try {
+            const licenses =
+                await License.find()
+                    .sort({
+                        createdAt: -1
+                    })
+                    .lean();
 
-    try {
+            return res.json({
+                success: true,
+                count:
+                    licenses.length,
+                licenses
+            });
 
-        const licenses =
-            await License.find()
-                .sort({
-                    createdAt: -1
-                })
-                .lean();
+        } catch (error) {
+            console.error(
+                "Get licenses error:",
+                error
+            );
 
-
-        return res.json({
-
-            success: true,
-
-            count:
-                licenses.length,
-
-            licenses
-
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Get licenses error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message:
-                "Failed to fetch licenses"
-        });
-    }
-};
-
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Failed to fetch licenses"
+            });
+        }
+    };
 
 /*
 |--------------------------------------------------------------------------
 | SUSPEND LICENSE
 |--------------------------------------------------------------------------
+|
+| IMPORTANT:
+|
+| DO NOT increment tokenVersion here.
+|
+| The existing token must remain usable after the license
+| is unsuspended. The "suspended" status itself blocks it.
+|
+|--------------------------------------------------------------------------
 */
 
-exports.suspendLicense = async (
-    req,
-    res
-) => {
+exports.suspendLicense =
+    async (req, res) => {
+        try {
+            const { id } =
+                req.params;
 
-    try {
+            const license =
+                await License.findById(
+                    id
+                );
 
-        const {
-            id
-        } = req.params;
+            if (!license) {
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        "License not found"
+                });
+            }
 
+            if (
+                license.status ===
+                "revoked"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "Revoked license cannot be suspended"
+                });
+            }
 
-        const license =
-            await License.findById(
-                id
+            if (
+                license.status ===
+                "suspended"
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "License is already suspended"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | SUSPEND
+            |--------------------------------------------------------------------------
+            */
+
+            license.status =
+                "suspended";
+
+            /*
+            |--------------------------------------------------------------------------
+            | IMPORTANT
+            |--------------------------------------------------------------------------
+            | Do NOT change tokenVersion.
+            |
+            | Existing token:
+            | version 1
+            |
+            | MongoDB:
+            | version 1
+            |
+            | Status:
+            | suspended
+            |
+            | Heartbeat will return suspended.
+            |
+            | After unsuspend:
+            | status becomes active.
+            |
+            | Same token version 1 becomes valid again.
+            |--------------------------------------------------------------------------
+            */
+
+            license.lastCheckedAt =
+                new Date();
+
+            await license.save();
+
+            return res.json({
+                success: true,
+                message:
+                    "License suspended successfully"
+            });
+
+        } catch (error) {
+            console.error(
+                "Suspend license error:",
+                error
             );
 
-
-        if (!license) {
-
-            return res.status(404).json({
+            return res.status(500).json({
                 success: false,
                 message:
-                    "License not found"
+                    "Failed to suspend license"
             });
         }
-
-
-        license.status =
-            "suspended";
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Invalidate all existing tokens
-        |--------------------------------------------------------------------------
-        */
-
-        license.tokenVersion =
-            Number(
-                license.tokenVersion || 0
-            ) + 1;
-
-
-        license.lastCheckedAt =
-            new Date();
-
-
-        await license.save();
-
-
-        return res.json({
-            success: true,
-            message:
-                "License suspended successfully"
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Suspend license error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message:
-                "Failed to suspend license"
-        });
-    }
-};
-
+    };
 
 /*
 |--------------------------------------------------------------------------
 | UNSUSPEND LICENSE
 |--------------------------------------------------------------------------
+|
+| IMPORTANT:
+|
+| Do NOT increment tokenVersion.
+|
+| This restores the existing installation token.
+|
+|--------------------------------------------------------------------------
 */
 
-exports.unsuspendLicense = async (
-    req,
-    res
-) => {
+exports.unsuspendLicense =
+    async (req, res) => {
+        try {
+            const { id } =
+                req.params;
 
-    try {
+            const license =
+                await License.findById(
+                    id
+                );
 
-        const {
-            id
-        } = req.params;
+            if (!license) {
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        "License not found"
+                });
+            }
 
+            if (
+                license.status !==
+                "suspended"
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "License is not suspended"
+                });
+            }
 
-        const license =
-            await License.findById(
-                id
+            /*
+            |--------------------------------------------------------------------------
+            | MUST STILL HAVE INSTALLATION
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                !license.shopDomain ||
+                !license.installationId
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "License has no active installation"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | CHECK EXPIRATION
+            |--------------------------------------------------------------------------
+            */
+
+            const expired =
+                await checkLicenseExpiry(
+                    license
+                );
+
+            if (expired) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "License has expired and cannot be unsuspended"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | RESTORE ACTIVE
+            |--------------------------------------------------------------------------
+            */
+
+            license.status =
+                "active";
+
+            license.lastCheckedAt =
+                new Date();
+
+            await license.save();
+
+            /*
+            |--------------------------------------------------------------------------
+            | DO NOT CHANGE TOKEN VERSION
+            |--------------------------------------------------------------------------
+            */
+
+            return res.json({
+                success: true,
+                message:
+                    "License unsuspended successfully",
+
+                license: {
+                    id:
+                        license._id,
+
+                    status:
+                        license.status,
+
+                    shopDomain:
+                        license.shopDomain,
+
+                    installationId:
+                        license.installationId,
+
+                    tokenVersion:
+                        license.tokenVersion
+                }
+            });
+
+        } catch (error) {
+            console.error(
+                "Unsuspend license error:",
+                error
             );
 
-
-        if (!license) {
-
-            return res.status(404).json({
+            return res.status(500).json({
                 success: false,
                 message:
-                    "License not found"
+                    "Failed to unsuspend license"
             });
         }
-
-
-        if (
-            license.status !==
-            "suspended"
-        ) {
-
-            return res.status(400).json({
-                success: false,
-                message:
-                    "License is not suspended"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Reactivate
-        |--------------------------------------------------------------------------
-        */
-
-        license.status =
-            "active";
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Invalidate suspended token
-        |--------------------------------------------------------------------------
-        */
-
-        license.tokenVersion =
-            Number(
-                license.tokenVersion || 0
-            ) + 1;
-
-
-        license.lastCheckedAt =
-            new Date();
-
-
-        await license.save();
-
-
-        return res.json({
-            success: true,
-            message:
-                "License unsuspended successfully"
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Unsuspend license error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message:
-                "Failed to unsuspend license"
-        });
-    }
-};
-
+    };
 
 /*
 |--------------------------------------------------------------------------
@@ -1425,262 +1253,229 @@ exports.unsuspendLicense = async (
 |--------------------------------------------------------------------------
 */
 
-exports.updateLicense = async (
-    req,
-    res
-) => {
+exports.updateLicense =
+    async (req, res) => {
+        try {
+            const { id } =
+                req.params;
 
-    try {
+            const {
+                plan,
+                expiresAt,
+                themeName,
+                renew = false
+            } = req.body;
 
-        const {
-            id
-        } = req.params;
-
-
-        const {
-            plan,
-            expiresAt,
-            themeName,
-            renew = false
-        } = req.body;
-
-
-        const license =
-            await License.findById(
-                id
-            );
-
-
-        if (!license) {
-
-            return res.status(404).json({
-                success: false,
-                message:
-                    "License not found"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | REVOKED LICENSE
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status ===
-            "revoked"
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                message:
-                    "Revoked licenses cannot be renewed"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | PLAN
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            plan !== undefined
-        ) {
-
-            const allowedPlans = [
-                "monthly",
-                "yearly",
-                "lifetime"
-            ];
-
-
-            if (
-                !allowedPlans.includes(
-                    plan
-                )
-            ) {
-
-                return res.status(400).json({
-                    success: false,
-                    message:
-                        "Invalid plan"
-                });
-            }
-
-
-            license.plan =
-                plan;
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | THEME NAME
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            themeName !== undefined
-        ) {
-
-            license.themeName =
-                themeName.trim() ||
-                "Ready Gym";
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | LIFETIME
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.plan ===
-            "lifetime"
-        ) {
-
-            license.expiresAt =
-                null;
-
-
-            if (
-                renew === true
-            ) {
-
-                license.status =
-                    "active";
-
-                license.tokenVersion =
-                    Number(
-                        license.tokenVersion || 0
-                    ) + 1;
-            }
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | MONTHLY / YEARLY
-        |--------------------------------------------------------------------------
-        */
-
-        else if (
-            expiresAt !== undefined
-        ) {
-
-            if (
-                expiresAt === null ||
-                expiresAt === ""
-            ) {
-
-                return res.status(400).json({
-                    success: false,
-                    message:
-                        "Expiration date is required for monthly/yearly licenses"
-                });
-            }
-
-
-            const date =
-                new Date(
-                    expiresAt
+            const license =
+                await License.findById(
+                    id
                 );
 
-
-            if (
-                Number.isNaN(
-                    date.getTime()
-                )
-            ) {
-
-                return res.status(400).json({
+            if (!license) {
+                return res.status(404).json({
                     success: false,
                     message:
-                        "Invalid expiration date"
+                        "License not found"
                 });
             }
 
-
             /*
             |--------------------------------------------------------------------------
-            | Renewal date must be future
+            | REVOKED
             |--------------------------------------------------------------------------
             */
 
             if (
-                renew === true &&
-                date <= new Date()
+                license.status ===
+                "revoked"
             ) {
-
-                return res.status(400).json({
+                return res.status(403).json({
                     success: false,
                     message:
-                        "Renewal date must be in the future"
+                        "Revoked licenses cannot be renewed"
                 });
             }
 
-
-            license.expiresAt =
-                date;
-
-
             /*
             |--------------------------------------------------------------------------
-            | Renew
+            | PLAN
             |--------------------------------------------------------------------------
             */
 
             if (
-                renew === true
+                plan !== undefined
             ) {
+                const allowedPlans = [
+                    "monthly",
+                    "yearly",
+                    "lifetime"
+                ];
 
-                license.status =
-                    "active";
+                if (
+                    !allowedPlans.includes(
+                        plan
+                    )
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Invalid plan"
+                    });
+                }
 
-                license.tokenVersion =
-                    Number(
-                        license.tokenVersion || 0
-                    ) + 1;
+                license.plan =
+                    plan;
             }
+
+            /*
+            |--------------------------------------------------------------------------
+            | THEME NAME
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                themeName !== undefined
+            ) {
+                license.themeName =
+                    themeName.trim() ||
+                    "Ready Gym";
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | LIFETIME
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                license.plan ===
+                "lifetime"
+            ) {
+                license.expiresAt =
+                    null;
+
+                if (
+                    renew === true
+                ) {
+                    license.status =
+                        "active";
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Renewal invalidates old token.
+                    |--------------------------------------------------------------------------
+                    */
+
+                    license.tokenVersion =
+                        Number(
+                            license.tokenVersion ||
+                                0
+                        ) + 1;
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | MONTHLY / YEARLY
+            |--------------------------------------------------------------------------
+            */
+
+            else if (
+                expiresAt !==
+                undefined
+            ) {
+                if (
+                    expiresAt ===
+                        null ||
+                    expiresAt === ""
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Expiration date is required for monthly/yearly licenses"
+                    });
+                }
+
+                const date =
+                    new Date(
+                        expiresAt
+                    );
+
+                if (
+                    Number.isNaN(
+                        date.getTime()
+                    )
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Invalid expiration date"
+                    });
+                }
+
+                if (
+                    renew === true &&
+                    date <=
+                        new Date()
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Renewal date must be in the future"
+                    });
+                }
+
+                license.expiresAt =
+                    date;
+
+                if (
+                    renew === true
+                ) {
+                    license.status =
+                        "active";
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Renewal invalidates old token.
+                    | refreshLicense supports the previous token version once.
+                    |--------------------------------------------------------------------------
+                    */
+
+                    license.tokenVersion =
+                        Number(
+                            license.tokenVersion ||
+                                0
+                        ) + 1;
+                }
+            }
+
+            await license.save();
+
+            return res.json({
+                success: true,
+
+                message:
+                    renew === true
+                        ? "License renewed successfully"
+                        : "License updated successfully",
+
+                license
+            });
+
+        } catch (error) {
+            console.error(
+                "Update license error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    error.message ||
+                    "Failed to update license"
+            });
         }
-
-
-        await license.save();
-
-
-        return res.json({
-
-            success: true,
-
-            message:
-                renew === true
-                    ? "License renewed successfully"
-                    : "License updated successfully",
-
-            license
-
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Update license error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message:
-                error.message ||
-                "Failed to update license"
-        });
-    }
-};
-
+    };
 
 /*
 |--------------------------------------------------------------------------
@@ -1688,209 +1483,176 @@ exports.updateLicense = async (
 |--------------------------------------------------------------------------
 */
 
-exports.adminDeactivateLicense = async (
-    req,
-    res
-) => {
+exports.adminDeactivateLicense =
+    async (req, res) => {
+        try {
+            const { id } =
+                req.params;
 
-    try {
+            const license =
+                await License.findById(
+                    id
+                );
 
-        const {
-            id
-        } = req.params;
-
-
-        const license =
-            await License.findById(
-                id
-            );
-
-
-        if (!license) {
-
-            return res.status(404).json({
-                success: false,
-                message:
-                    "License not found"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | DEACTIVATE
-        |--------------------------------------------------------------------------
-        */
-
-        license.status =
-            "inactive";
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | REMOVE STORE BINDING
-        |--------------------------------------------------------------------------
-        */
-
-        license.shopDomain =
-            null;
-
-        license.installationId =
-            null;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | INVALIDATE TOKENS
-        |--------------------------------------------------------------------------
-        */
-
-        license.tokenVersion =
-            Number(
-                license.tokenVersion || 0
-            ) + 1;
-
-
-        license.lastCheckedAt =
-            new Date();
-
-        license.lastSeenAt =
-            null;
-
-
-        await license.save();
-
-
-        return res.json({
-
-            success: true,
-
-            message:
-                "License deactivated successfully",
-
-            license: {
-
-                id:
-                    license._id,
-
-                licenseKey:
-                    license.licenseKey,
-
-                status:
-                    license.status,
-
-                shopDomain:
-                    license.shopDomain,
-
-                tokenVersion:
-                    license.tokenVersion
-
+            if (!license) {
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        "License not found"
+                });
             }
 
-        });
+            /*
+            |--------------------------------------------------------------------------
+            | DEACTIVATE
+            |--------------------------------------------------------------------------
+            */
 
-    } catch (error) {
+            license.status =
+                "inactive";
 
-        console.error(
-            "Admin deactivate license error:",
-            error
-        );
+            license.shopDomain =
+                null;
 
-        return res.status(500).json({
-            success: false,
-            message:
-                error.message ||
-                "Failed to deactivate license"
-        });
-    }
-};
+            license.installationId =
+                null;
 
+            /*
+            |--------------------------------------------------------------------------
+            | INVALIDATE TOKEN
+            |--------------------------------------------------------------------------
+            */
+
+            license.tokenVersion =
+                Number(
+                    license.tokenVersion ||
+                        0
+                ) + 1;
+
+            license.lastCheckedAt =
+                new Date();
+
+            license.lastSeenAt =
+                null;
+
+            license.lastIntegrityCheckAt =
+                null;
+
+            license.themeVersion =
+                null;
+
+            await license.save();
+
+            return res.json({
+                success: true,
+
+                message:
+                    "License deactivated successfully",
+
+                license: {
+                    id:
+                        license._id,
+
+                    licenseKey:
+                        license.licenseKey,
+
+                    status:
+                        license.status,
+
+                    shopDomain:
+                        license.shopDomain,
+
+                    tokenVersion:
+                        license.tokenVersion
+                }
+            });
+
+        } catch (error) {
+            console.error(
+                "Admin deactivate license error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    error.message ||
+                    "Failed to deactivate license"
+            });
+        }
+    };
 
 /*
 |--------------------------------------------------------------------------
 | ADMIN ACTIVATE LICENSE
 |--------------------------------------------------------------------------
 |
-| Admin cannot activate an unactivated license.
-| Activation must happen from the Shopify store.
+| Admin must NOT activate a license.
+| Activation happens from Shopify.
+|
 |--------------------------------------------------------------------------
 */
 
-exports.adminActivateLicense = async (
-    req,
-    res
-) => {
+exports.adminActivateLicense =
+    async (req, res) => {
+        try {
+            const { id } =
+                req.params;
 
-    try {
+            const license =
+                await License.findById(
+                    id
+                );
 
-        const {
-            id
-        } = req.params;
+            if (!license) {
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        "License not found"
+                });
+            }
 
+            if (
+                license.status ===
+                "revoked"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "Revoked licenses cannot be activated."
+                });
+            }
 
-        const license =
-            await License.findById(
-                id
-            );
-
-
-        if (!license) {
-
-            return res.status(404).json({
-                success: false,
-                message:
-                    "License not found"
-            });
-        }
-
-
-        if (
-            license.status ===
-            "revoked"
-        ) {
+            if (
+                license.status ===
+                "active"
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "License is already active."
+                });
+            }
 
             return res.status(403).json({
                 success: false,
                 message:
-                    "Revoked licenses cannot be activated."
+                    "This license can only be activated from the Shopify store."
             });
-        }
 
+        } catch (error) {
+            console.error(
+                "Admin activate license error:",
+                error
+            );
 
-        if (
-            license.status ===
-            "active"
-        ) {
-
-            return res.status(400).json({
+            return res.status(500).json({
                 success: false,
                 message:
-                    "License is already active."
+                    "Failed to activate license"
             });
         }
-
-
-        return res.status(403).json({
-            success: false,
-            message:
-                "This license can only be activated from the Shopify store."
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Admin activate license error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message:
-                "Failed to activate license"
-        });
-    }
-};
-
+    };
 
 /*
 |--------------------------------------------------------------------------
@@ -1898,120 +1660,101 @@ exports.adminActivateLicense = async (
 |--------------------------------------------------------------------------
 */
 
-exports.revokeLicense = async (
-    req,
-    res
-) => {
+exports.revokeLicense =
+    async (req, res) => {
+        try {
+            const { id } =
+                req.params;
 
-    try {
+            const license =
+                await License.findById(
+                    id
+                );
 
-        const {
-            id
-        } = req.params;
-
-
-        const license =
-            await License.findById(
-                id
-            );
-
-
-        if (!license) {
-
-            return res.status(404).json({
-                success: false,
-                message:
-                    "License not found"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | REVOKE
-        |--------------------------------------------------------------------------
-        */
-
-        license.status =
-            "revoked";
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | REMOVE STORE BINDING
-        |--------------------------------------------------------------------------
-        */
-
-        license.shopDomain =
-            null;
-
-        license.installationId =
-            null;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | INVALIDATE TOKENS
-        |--------------------------------------------------------------------------
-        */
-
-        license.tokenVersion =
-            Number(
-                license.tokenVersion || 0
-            ) + 1;
-
-
-        license.lastCheckedAt =
-            new Date();
-
-        license.lastSeenAt =
-            null;
-
-
-        await license.save();
-
-
-        return res.json({
-
-            success: true,
-
-            message:
-                "License revoked successfully",
-
-            license: {
-
-                id:
-                    license._id,
-
-                licenseKey:
-                    license.licenseKey,
-
-                status:
-                    license.status,
-
-                tokenVersion:
-                    license.tokenVersion
-
+            if (!license) {
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        "License not found"
+                });
             }
 
-        });
+            /*
+            |--------------------------------------------------------------------------
+            | REVOKE
+            |--------------------------------------------------------------------------
+            */
 
-    } catch (error) {
+            license.status =
+                "revoked";
 
-        console.error(
-            "Revoke license error:",
-            error
-        );
+            license.shopDomain =
+                null;
 
-        return res.status(500).json({
-            success: false,
-            message:
-                error.message ||
-                "Failed to revoke license"
-        });
-    }
-};
+            license.installationId =
+                null;
 
+            /*
+            |--------------------------------------------------------------------------
+            | PERMANENT TOKEN INVALIDATION
+            |--------------------------------------------------------------------------
+            */
+
+            license.tokenVersion =
+                Number(
+                    license.tokenVersion ||
+                        0
+                ) + 1;
+
+            license.lastCheckedAt =
+                new Date();
+
+            license.lastSeenAt =
+                null;
+
+            license.lastIntegrityCheckAt =
+                null;
+
+            license.themeVersion =
+                null;
+
+            await license.save();
+
+            return res.json({
+                success: true,
+
+                message:
+                    "License revoked successfully",
+
+                license: {
+                    id:
+                        license._id,
+
+                    licenseKey:
+                        license.licenseKey,
+
+                    status:
+                        license.status,
+
+                    tokenVersion:
+                        license.tokenVersion
+                }
+            });
+
+        } catch (error) {
+            console.error(
+                "Revoke license error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    error.message ||
+                    "Failed to revoke license"
+            });
+        }
+    };
 
 /*
 |--------------------------------------------------------------------------
@@ -2019,1206 +1762,987 @@ exports.revokeLicense = async (
 |--------------------------------------------------------------------------
 */
 
-exports.refreshLicense = async (
-    req,
-    res
-) => {
-
-    try {
-
-        const token =
-            getBearerToken(req);
-
-
-        if (!token) {
-
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Authorization token is required"
-            });
-        }
-
-
-        let decoded;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Allow expired JWT to be verified
-        |--------------------------------------------------------------------------
-        |
-        | The JWT can expire after 30 days, but the license itself
-        | may still be active. We therefore verify the signature while
-        | ignoring JWT expiration.
-        |
-        */
-
+exports.refreshLicense =
+    async (req, res) => {
         try {
+            const token =
+                getBearerToken(req);
 
-            decoded =
-                jwt.verify(
-                    token,
-                    process.env.JWT_SECRET,
-                    {
-                        ignoreExpiration:
-                            true
-                    }
+            if (!token) {
+                return res.status(401).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Authorization token is required"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | VERIFY TOKEN
+            |--------------------------------------------------------------------------
+            |
+            | JWT expiration is ignored here because the license itself
+            | can still be active after the 30-day JWT expires.
+            |--------------------------------------------------------------------------
+            */
+
+            let decoded;
+
+            try {
+                decoded =
+                    jwt.verify(
+                        token,
+                        process.env.JWT_SECRET,
+                        {
+                            ignoreExpiration:
+                                true
+                        }
+                    );
+
+                if (
+                    decoded.type !==
+                    "readygym_installation"
+                ) {
+                    throw new Error(
+                        "Invalid installation token"
+                    );
+                }
+
+            } catch (error) {
+                return res.status(401).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Invalid activation token"
+                });
+            }
+
+            const license =
+                await License.findById(
+                    decoded.licenseId
                 );
 
+            if (!license) {
+                return res.status(404).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "License not found"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | LICENSE KEY
+            |--------------------------------------------------------------------------
+            */
 
             if (
-                decoded.type !==
-                "readygym_installation"
+                license.licenseKey !==
+                decoded.licenseKey
             ) {
-
-                throw new Error(
-                    "Invalid installation token"
-                );
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Invalid license token"
+                });
             }
+
+            /*
+            |--------------------------------------------------------------------------
+            | INSTALLATION
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                !license.installationId ||
+                license.installationId !==
+                    decoded.installationId
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Installation mismatch"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | SHOP
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                !license.shopDomain ||
+                license.shopDomain !==
+                    decoded.shopDomain
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "License store mismatch"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | REVOKED
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                license.status ===
+                "revoked"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "License has been revoked"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | SUSPENDED
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                license.status ===
+                "suspended"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "License is suspended"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | TOKEN VERSION
+            |--------------------------------------------------------------------------
+            |
+            | Normal token:
+            | decoded version === current version
+            |
+            | Renewal:
+            | decoded version === current version - 1
+            |
+            |--------------------------------------------------------------------------
+            */
+
+            const currentVersion =
+                Number(
+                    license.tokenVersion ||
+                        0
+                );
+
+            const tokenVersion =
+                Number(
+                    decoded.tokenVersion ||
+                        0
+                );
+
+            if (
+                tokenVersion !==
+                    currentVersion &&
+                tokenVersion !==
+                    currentVersion - 1
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Activation token has been revoked"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | EXPIRATION
+            |--------------------------------------------------------------------------
+            */
+
+            const expired =
+                await checkLicenseExpiry(
+                    license
+                );
+
+            if (expired) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "License has expired"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | ACTIVE
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                license.status !==
+                "active"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        `License is ${license.status}`
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | CREATE NEW TOKEN
+            |--------------------------------------------------------------------------
+            */
+
+            const newToken =
+                createInstallationToken(
+                    license
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | UPDATE ACTIVITY
+            |--------------------------------------------------------------------------
+            */
+
+            const now =
+                new Date();
+
+            license.lastCheckedAt =
+                now;
+
+            license.lastSeenAt =
+                now;
+
+            await license.save();
+
+            return res.json({
+                success: true,
+                valid: true,
+
+                message:
+                    "Activation token refreshed",
+
+                token:
+                    newToken,
+
+                license: {
+                    themeName:
+                        license.themeName,
+
+                    plan:
+                        license.plan,
+
+                    shopDomain:
+                        license.shopDomain,
+
+                    installationId:
+                        license.installationId,
+
+                    expiresAt:
+                        license.expiresAt
+                }
+            });
 
         } catch (error) {
-
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Invalid activation token"
-            });
-        }
-
-
-        const license =
-            await License.findById(
-                decoded.licenseId
+            console.error(
+                "Refresh license error:",
+                error
             );
 
-
-        if (!license) {
-
-            return res.status(404).json({
+            return res.status(500).json({
                 success: false,
                 valid: false,
                 message:
-                    "License not found"
+                    "License refresh failed"
             });
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | LICENSE KEY
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.licenseKey !==
-            decoded.licenseKey
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "Invalid license token"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | INSTALLATION
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            !license.installationId ||
-            license.installationId !==
-                decoded.installationId
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "Installation mismatch"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | REVOKED
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status ===
-            "revoked"
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "License has been revoked"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | SUSPENDED
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status ===
-            "suspended"
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "License is suspended"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | SHOP MATCH
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            !license.shopDomain ||
-            license.shopDomain !==
-                decoded.shopDomain
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "License store mismatch"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | TOKEN VERSION
-        |--------------------------------------------------------------------------
-        |
-        | Current token:
-        |
-        | decoded = currentVersion
-        |
-        | Token issued immediately before renewal:
-        |
-        | decoded = currentVersion - 1
-        |
-        | This allows a renewed active license to refresh its
-        | old token once.
-        |
-        */
-
-        const currentVersion =
-            Number(
-                license.tokenVersion || 0
-            );
-
-        const oldVersion =
-            Number(
-                decoded.tokenVersion || 0
-            );
-
-
-        if (
-            oldVersion !==
-                currentVersion &&
-            oldVersion !==
-                currentVersion - 1
-        ) {
-
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Activation token has been revoked"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | EXPIRATION
-        |--------------------------------------------------------------------------
-        */
-
-        const isExpired =
-            await checkLicenseExpiry(
-                license
-            );
-
-
-        if (isExpired) {
-
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "License has expired"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | ACTIVE STATUS
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status !==
-            "active"
-        ) {
-
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    `License is ${license.status}`
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | CREATE NEW INSTALLATION TOKEN
-        |--------------------------------------------------------------------------
-        */
-
-        const newToken =
-            createInstallationToken(
-                license
-            );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | UPDATE ACTIVITY
-        |--------------------------------------------------------------------------
-        */
-
-        const now =
-            new Date();
-
-        license.lastCheckedAt =
-            now;
-
-        license.lastSeenAt =
-            now;
-
-
-        await license.save();
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | RESPONSE
-        |--------------------------------------------------------------------------
-        */
-
-        return res.json({
-
-            success: true,
-
-            valid: true,
-
-            message:
-                "Activation token refreshed",
-
-            token:
-                newToken,
-
-            license: {
-
-                themeName:
-                    license.themeName,
-
-                plan:
-                    license.plan,
-
-                shopDomain:
-                    license.shopDomain,
-
-                installationId:
-                    license.installationId,
-
-                expiresAt:
-                    license.expiresAt
-
-            }
-
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Refresh license error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            valid: false,
-            message:
-                "License refresh failed"
-        });
-    }
-};
-
+    };
 
 /*
 |--------------------------------------------------------------------------
 | PUBLIC LICENSE CHECK
 |--------------------------------------------------------------------------
 |
-| This endpoint intentionally returns minimal information.
-| It does NOT expose installationId or license metadata.
+| Minimal response.
+|
 |--------------------------------------------------------------------------
 */
 
-exports.publicCheckLicense = async (
-    req,
-    res
-) => {
+exports.publicCheckLicense =
+    async (req, res) => {
+        try {
+            const {
+                shopDomain
+            } = req.body;
 
-    try {
+            if (!shopDomain) {
+                return res.status(400).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Shop domain is required"
+                });
+            }
 
-        const {
-            shopDomain
-        } = req.body;
+            const normalizedShop =
+                normalizeShopDomain(
+                    shopDomain
+                );
 
+            const license =
+                await License.findOne({
+                    shopDomain:
+                        normalizedShop,
 
-        if (!shopDomain) {
+                    status:
+                        "active"
+                }).sort({
+                    createdAt: -1
+                });
 
-            return res.status(400).json({
+            if (!license) {
+                return res.json({
+                    success: true,
+                    valid: false
+                });
+            }
+
+            const expired =
+                await checkLicenseExpiry(
+                    license
+                );
+
+            if (expired) {
+                return res.json({
+                    success: true,
+                    valid: false
+                });
+            }
+
+            if (
+                license.status !==
+                "active"
+            ) {
+                return res.json({
+                    success: true,
+                    valid: false
+                });
+            }
+
+            return res.json({
+                success: true,
+                valid: true
+            });
+
+        } catch (error) {
+            console.error(
+                "Public license check error:",
+                error
+            );
+
+            return res.status(500).json({
                 success: false,
                 valid: false,
                 message:
-                    "Shop domain is required"
+                    "License verification failed"
             });
         }
-
-
-        const normalizedShop =
-            normalizeShopDomain(
-                shopDomain
-            );
-
-
-        console.log(
-            "PUBLIC LICENSE CHECK:",
-            normalizedShop
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | FIND ACTIVE LICENSE
-        |--------------------------------------------------------------------------
-        */
-
-        const license =
-            await License.findOne({
-
-                shopDomain:
-                    normalizedShop,
-
-                status:
-                    "active"
-
-            }).sort({
-                createdAt: -1
-            });
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | NO LICENSE
-        |--------------------------------------------------------------------------
-        */
-
-        if (!license) {
-
-            console.log(
-                "NO ACTIVE LICENSE FOUND FOR:",
-                normalizedShop
-            );
-
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | EXPIRATION
-        |--------------------------------------------------------------------------
-        */
-
-        const isExpired =
-            await checkLicenseExpiry(
-                license
-            );
-
-
-        if (isExpired) {
-
-            console.log(
-                "LICENSE EXPIRED:",
-                license.licenseKey
-            );
-
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | FINAL STATUS
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status !==
-            "active"
-        ) {
-
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | VALID
-        |--------------------------------------------------------------------------
-        */
-
-        return res.json({
-            success: true,
-            valid: true
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Public license check error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            valid: false,
-            message:
-                "License verification failed"
-        });
-    }
-};
-
+    };
 
 /*
 |--------------------------------------------------------------------------
 | PUBLIC INTEGRITY CHECK
 |--------------------------------------------------------------------------
-|
-| NOTE:
-| This is still a client-reported integrity check.
-| It is useful as a tamper signal but is NOT cryptographic proof.
-|--------------------------------------------------------------------------
 */
 
-exports.publicIntegrityCheck = async (req, res) => {
-    try {
-
-        const {
-            shopDomain,
-            components
-        } = req.body;
-
-        if (
-            !shopDomain ||
-            !components
-        ) {
-            return res.status(400).json({
-                success: false,
-                valid: false,
-                message:
-                    "Integrity information is required."
-            });
-        }
-
-        const token =
-            getBearerToken(req);
-
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Installation token required."
-            });
-        }
-
-        let decoded;
-
+exports.publicIntegrityCheck =
+    async (req, res) => {
         try {
+            const {
+                shopDomain,
+                components
+            } = req.body;
 
-            decoded =
-                verifyInstallationToken(
-                    token
+            if (
+                !shopDomain ||
+                !components
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Integrity information is required."
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | TOKEN
+            |--------------------------------------------------------------------------
+            */
+
+            const token =
+                getBearerToken(req);
+
+            if (!token) {
+                return res.status(401).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Installation token required."
+                });
+            }
+
+            let decoded;
+
+            try {
+                decoded =
+                    verifyInstallationToken(
+                        token
+                    );
+            } catch (error) {
+                return res.status(401).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Invalid or expired installation token."
+                });
+            }
+
+            const normalizedShop =
+                normalizeShopDomain(
+                    shopDomain
                 );
 
-        } catch (error) {
+            const license =
+                await License.findById(
+                    decoded.licenseId
+                );
 
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Invalid or expired installation token."
-            });
-        }
+            if (!license) {
+                return res.json({
+                    success: true,
+                    valid: false
+                });
+            }
 
-        const normalizedShop =
-            normalizeShopDomain(
-                shopDomain
-            );
+            /*
+            |--------------------------------------------------------------------------
+            | LICENSE KEY
+            |--------------------------------------------------------------------------
+            */
 
-        const license =
-            await License.findById(
-                decoded.licenseId
-            );
+            if (
+                license.licenseKey !==
+                decoded.licenseKey
+            ) {
+                return res.json({
+                    success: true,
+                    valid: false
+                });
+            }
 
-        if (!license) {
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
+            /*
+            |--------------------------------------------------------------------------
+            | INSTALLATION
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | LICENSE KEY MATCH
-        |--------------------------------------------------------------------------
-        */
+            if (
+                !license.installationId ||
+                license.installationId !==
+                    decoded.installationId
+            ) {
+                return res.json({
+                    success: true,
+                    valid: false
+                });
+            }
 
-        if (
-            license.licenseKey !==
-            decoded.licenseKey
-        ) {
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
+            /*
+            |--------------------------------------------------------------------------
+            | SHOP
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | INSTALLATION MATCH
-        |--------------------------------------------------------------------------
-        */
+            if (
+                !license.shopDomain ||
+                license.shopDomain !==
+                    normalizedShop
+            ) {
+                return res.json({
+                    success: true,
+                    valid: false
+                });
+            }
 
-        if (
-            !license.installationId ||
-            license.installationId !==
-                decoded.installationId
-        ) {
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
+            /*
+            |--------------------------------------------------------------------------
+            | TOKEN VERSION
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | SHOP MATCH
-        |--------------------------------------------------------------------------
-        */
+            if (
+                Number(
+                    decoded.tokenVersion
+                ) !==
+                Number(
+                    license.tokenVersion ||
+                        0
+                )
+            ) {
+                return res.json({
+                    success: true,
+                    valid: false
+                });
+            }
 
-        if (
-            !license.shopDomain ||
-            license.shopDomain !==
-                normalizedShop
-        ) {
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
+            /*
+            |--------------------------------------------------------------------------
+            | STATUS
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | TOKEN VERSION
-        |--------------------------------------------------------------------------
-        */
+            if (
+                license.status !==
+                "active"
+            ) {
+                return res.json({
+                    success: true,
+                    valid: false
+                });
+            }
 
-        if (
-            Number(decoded.tokenVersion) !==
-            Number(license.tokenVersion || 0)
-        ) {
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
+            /*
+            |--------------------------------------------------------------------------
+            | EXPIRATION
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | REVOKED
-        |--------------------------------------------------------------------------
-        */
+            const expired =
+                await checkLicenseExpiry(
+                    license
+                );
 
-        if (
-            license.status ===
-            "revoked"
-        ) {
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
+            if (expired) {
+                return res.json({
+                    success: true,
+                    valid: false
+                });
+            }
 
-        /*
-        |--------------------------------------------------------------------------
-        | SUSPENDED
-        |--------------------------------------------------------------------------
-        */
+            /*
+            |--------------------------------------------------------------------------
+            | REQUIRED COMPONENTS
+            |--------------------------------------------------------------------------
+            */
 
-        if (
-            license.status ===
-            "suspended"
-        ) {
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
+            const requiredComponents = [
+                "rg-license-js",
+                "rg-license-lock",
+                "rg-license-marker"
+            ];
 
-        /*
-        |--------------------------------------------------------------------------
-        | EXPIRATION
-        |--------------------------------------------------------------------------
-        */
+            const missingComponents =
+                requiredComponents.filter(
+                    (component) =>
+                        components[
+                            component
+                        ] !== true
+                );
 
-        const expired =
-            await checkLicenseExpiry(
-                license
-            );
+            if (
+                missingComponents.length >
+                0
+            ) {
+                const now =
+                    new Date();
 
-        if (expired) {
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
+                license.lastCheckedAt =
+                    now;
 
-        /*
-        |--------------------------------------------------------------------------
-        | ACTIVE REQUIRED
-        |--------------------------------------------------------------------------
-        */
+                license.lastIntegrityCheckAt =
+                    now;
 
-        if (
-            license.status !==
-            "active"
-        ) {
-            return res.json({
-                success: true,
-                valid: false
-            });
-        }
+                license.lastSeenAt =
+                    now;
 
-        /*
-        |--------------------------------------------------------------------------
-        | REQUIRED THEME COMPONENTS
-        |--------------------------------------------------------------------------
-        */
+                await license.save();
 
-        const requiredComponents = [
-            "rg-license-js",
-            "rg-license-lock",
-            "rg-license-marker"
-        ];
+                return res.json({
+                    success: true,
+                    valid: false,
+                    reason:
+                        "theme_integrity_failed",
+                    missing:
+                        missingComponents
+                });
+            }
 
-        const missingComponents =
-            requiredComponents.filter(
-                (component) =>
-                    components[component] !== true
-            );
+            /*
+            |--------------------------------------------------------------------------
+            | SUCCESS
+            |--------------------------------------------------------------------------
+            */
 
-        if (
-            missingComponents.length > 0
-        ) {
+            const now =
+                new Date();
 
             license.lastCheckedAt =
-                new Date();
+                now;
 
             license.lastIntegrityCheckAt =
-                new Date();
+                now;
 
             license.lastSeenAt =
-                new Date();
+                now;
 
             await license.save();
 
             return res.json({
                 success: true,
-                valid: false,
-                reason:
-                    "theme_integrity_failed",
-                missing:
-                    missingComponents
+                valid: true
+            });
+
+        } catch (error) {
+            console.error(
+                "Integrity check error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                valid: false
             });
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | SUCCESS
-        |--------------------------------------------------------------------------
-        */
-
-        const now =
-            new Date();
-
-        license.lastCheckedAt =
-            now;
-
-        license.lastIntegrityCheckAt =
-            now;
-
-        license.lastSeenAt =
-            now;
-
-        await license.save();
-
-        return res.json({
-            success: true,
-            valid: true
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Integrity check error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            valid: false
-        });
-    }
-};
-
+    };
 
 /*
 |--------------------------------------------------------------------------
 | LICENSE HEARTBEAT
 |--------------------------------------------------------------------------
-|
-| The heartbeat is now authenticated using the signed
-| Ready Gym installation token.
-|--------------------------------------------------------------------------
 */
 
-exports.licenseHeartbeat = async (req, res) => {
-    try {
-
-        /*
-        |--------------------------------------------------------------------------
-        | AUTHORIZATION HEADER
-        |--------------------------------------------------------------------------
-        */
-
-        const authHeader =
-            req.headers.authorization;
-
-        if (
-            !authHeader ||
-            !authHeader.startsWith("Bearer ")
-        ) {
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Installation token required."
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | GET TOKEN
-        |--------------------------------------------------------------------------
-        */
-
-        const token =
-            authHeader.substring(7);
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | VERIFY TOKEN
-        |--------------------------------------------------------------------------
-        */
-
-        let decoded;
-
+exports.licenseHeartbeat =
+    async (req, res) => {
         try {
+            /*
+            |--------------------------------------------------------------------------
+            | TOKEN
+            |--------------------------------------------------------------------------
+            */
 
-            decoded = jwt.verify(
-                token,
-                process.env.JWT_SECRET
-            );
+            const token =
+                getBearerToken(req);
 
-        } catch (error) {
+            if (!token) {
+                return res.status(401).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Installation token required."
+                });
+            }
 
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Invalid or expired installation token."
-            });
-        }
+            /*
+            |--------------------------------------------------------------------------
+            | VERIFY TOKEN
+            |--------------------------------------------------------------------------
+            */
 
+            let decoded;
 
-        /*
-        |--------------------------------------------------------------------------
-        | TOKEN TYPE
-        |--------------------------------------------------------------------------
-        */
+            try {
+                decoded =
+                    verifyInstallationToken(
+                        token
+                    );
+            } catch (error) {
+                return res.status(401).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Invalid or expired installation token."
+                });
+            }
 
-        if (
-            decoded.type !==
-            "readygym_installation"
-        ) {
+            /*
+            |--------------------------------------------------------------------------
+            | REQUEST DATA
+            |--------------------------------------------------------------------------
+            */
 
-            return res.status(401).json({
-                success: false,
-                valid: false,
-                message:
-                    "Invalid installation token."
-            });
-        }
+            const {
+                shopDomain,
+                themeVersion
+            } = req.body;
 
+            if (!shopDomain) {
+                return res.status(400).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Shop domain is required."
+                });
+            }
 
-        /*
-        |--------------------------------------------------------------------------
-        | REQUEST DATA
-        |--------------------------------------------------------------------------
-        */
-
-        const {
-            shopDomain,
-            themeVersion
-        } = req.body;
-
-
-        if (!shopDomain) {
-
-            return res.status(400).json({
-                success: false,
-                valid: false,
-                message:
-                    "Shop domain is required."
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | NORMALIZE SHOP
-        |--------------------------------------------------------------------------
-        */
-
-        const normalizedShop =
-            shopDomain
-                .trim()
-                .toLowerCase()
-                .replace(
-                    /^https?:\/\//,
-                    ""
-                )
-                .replace(
-                    /\/+$/,
-                    ""
+            const normalizedShop =
+                normalizeShopDomain(
+                    shopDomain
                 );
 
+            /*
+            |--------------------------------------------------------------------------
+            | FIND LICENSE
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | FIND LICENSE BY TOKEN LICENSE ID
-        |--------------------------------------------------------------------------
-        */
+            const license =
+                await License.findById(
+                    decoded.licenseId
+                );
 
-        const license =
-            await License.findById(
-                decoded.licenseId
-            );
+            if (!license) {
+                return res.status(404).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "License not found."
+                });
+            }
 
+            /*
+            |--------------------------------------------------------------------------
+            | LICENSE KEY
+            |--------------------------------------------------------------------------
+            */
 
-        if (!license) {
+            if (
+                license.licenseKey !==
+                decoded.licenseKey
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "License token mismatch."
+                });
+            }
 
-            return res.status(404).json({
-                success: false,
-                valid: false,
-                message:
-                    "License not found."
-            });
-        }
+            /*
+            |--------------------------------------------------------------------------
+            | INSTALLATION
+            |--------------------------------------------------------------------------
+            */
 
+            if (
+                !license.installationId ||
+                license.installationId !==
+                    decoded.installationId
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Installation mismatch."
+                });
+            }
 
-        /*
-        |--------------------------------------------------------------------------
-        | LICENSE KEY MATCH
-        |--------------------------------------------------------------------------
-        */
+            /*
+            |--------------------------------------------------------------------------
+            | SHOP
+            |--------------------------------------------------------------------------
+            */
 
-        if (
-            license.licenseKey !==
-            decoded.licenseKey
-        ) {
+            if (
+                !license.shopDomain ||
+                license.shopDomain !==
+                    normalizedShop
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Store mismatch."
+                });
+            }
 
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "License token mismatch."
-            });
-        }
+            /*
+            |--------------------------------------------------------------------------
+            | TOKEN VERSION
+            |--------------------------------------------------------------------------
+            */
 
+            if (
+                Number(
+                    decoded.tokenVersion
+                ) !==
+                Number(
+                    license.tokenVersion ||
+                        0
+                )
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    message:
+                        "Installation token has been invalidated."
+                });
+            }
 
-        /*
-        |--------------------------------------------------------------------------
-        | INSTALLATION ID MATCH
-        |--------------------------------------------------------------------------
-        */
+            /*
+            |--------------------------------------------------------------------------
+            | REVOKED
+            |--------------------------------------------------------------------------
+            */
 
-        if (
-            !license.installationId ||
-            license.installationId !==
-            decoded.installationId
-        ) {
+            if (
+                license.status ===
+                "revoked"
+            ) {
+                return res.json({
+                    success: true,
+                    valid: false,
+                    status:
+                        "revoked",
+                    message:
+                        "License has been revoked."
+                });
+            }
 
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "Installation mismatch."
-            });
-        }
+            /*
+            |--------------------------------------------------------------------------
+            | SUSPENDED
+            |--------------------------------------------------------------------------
+            */
 
+            if (
+                license.status ===
+                "suspended"
+            ) {
+                return res.json({
+                    success: true,
+                    valid: false,
+                    status:
+                        "suspended",
+                    message:
+                        "License is suspended."
+                });
+            }
 
-        /*
-        |--------------------------------------------------------------------------
-        | SHOP MATCH
-        |--------------------------------------------------------------------------
-        */
+            /*
+            |--------------------------------------------------------------------------
+            | EXPIRATION
+            |--------------------------------------------------------------------------
+            */
 
-        if (
-            !license.shopDomain ||
-            license.shopDomain !==
-            normalizedShop
-        ) {
+            const expired =
+                await checkLicenseExpiry(
+                    license
+                );
 
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "Store mismatch."
-            });
-        }
+            if (expired) {
+                return res.json({
+                    success: true,
+                    valid: false,
+                    status:
+                        "expired",
+                    message:
+                        "License has expired."
+                });
+            }
 
+            /*
+            |--------------------------------------------------------------------------
+            | ACTIVE REQUIRED
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | TOKEN VERSION
-        |--------------------------------------------------------------------------
-        |
-        | If admin suspends, revokes, deactivates, or otherwise
-        | invalidates the installation, tokenVersion changes.
-        |
-        |--------------------------------------------------------------------------
-        */
+            if (
+                license.status !==
+                "active"
+            ) {
+                return res.json({
+                    success: true,
+                    valid: false,
+                    status:
+                        license.status,
+                    message:
+                        `License is ${license.status}.`
+                });
+            }
 
-        if (
-            Number(
-                decoded.tokenVersion
-            ) !==
-            Number(
-                license.tokenVersion || 0
-            )
-        ) {
+            /*
+            |--------------------------------------------------------------------------
+            | UPDATE INSTALLATION ACTIVITY
+            |--------------------------------------------------------------------------
+            */
 
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                message:
-                    "Installation token has been invalidated."
-            });
-        }
+            const now =
+                new Date();
 
+            license.lastSeenAt =
+                now;
 
-        /*
-        |--------------------------------------------------------------------------
-        | REVOKED
-        |--------------------------------------------------------------------------
-        */
+            license.lastCheckedAt =
+                now;
 
-        if (
-            license.status ===
-            "revoked"
-        ) {
+            if (themeVersion) {
+                license.themeVersion =
+                    themeVersion;
+            }
+
+            await license.save();
+
+            /*
+            |--------------------------------------------------------------------------
+            | SUCCESS
+            |--------------------------------------------------------------------------
+            */
 
             return res.json({
                 success: true,
-                valid: false,
-                status: "revoked"
-            });
-        }
+                valid: true,
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | SUSPENDED
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status ===
-            "suspended"
-        ) {
-
-            return res.json({
-                success: true,
-                valid: false,
-                status: "suspended"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | EXPIRATION
-        |--------------------------------------------------------------------------
-        */
-
-        const expired =
-            await checkLicenseExpiry(
-                license
-            );
-
-
-        if (expired) {
-
-            return res.json({
-                success: true,
-                valid: false,
-                status: "expired"
-            });
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | ACTIVE LICENSE REQUIRED
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status !==
-            "active"
-        ) {
-
-            return res.json({
-                success: true,
-                valid: false,
                 status:
-                    license.status
+                    license.status,
+
+                themeVersion:
+                    license.themeVersion,
+
+                expiresAt:
+                    license.expiresAt,
+
+                lastSeenAt:
+                    license.lastSeenAt
+            });
+
+        } catch (error) {
+            console.error(
+                "License heartbeat error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                valid: false,
+                message:
+                    "Heartbeat failed."
             });
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | UPDATE INSTALLATION ACTIVITY
-        |--------------------------------------------------------------------------
-        */
-
-        const now =
-            new Date();
-
-        license.lastSeenAt =
-            now;
-
-        license.lastCheckedAt =
-            now;
-
-        license.themeVersion =
-            themeVersion ||
-            license.themeVersion ||
-            null;
-
-        await license.save();
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | SUCCESS
-        |--------------------------------------------------------------------------
-        */
-
-        return res.json({
-            success: true,
-            valid: true,
-            status:
-                license.status,
-
-            themeVersion:
-                license.themeVersion,
-
-            expiresAt:
-                license.expiresAt,
-
-            lastSeenAt:
-                license.lastSeenAt
-        });
-
-    } catch (error) {
-
-        console.error(
-            "License heartbeat error:"
-        );
-
-        console.error(error);
-
-        return res.status(500).json({
-            success: false,
-            valid: false,
-            message:
-                "Heartbeat failed."
-        });
-    }
-};
+    };
