@@ -2052,3 +2052,209 @@ exports.publicIntegrityCheck = async (req, res) => {
         });
     }
 };
+
+
+exports.licenseHeartbeat = async (req, res) => {
+
+    try {
+
+        const {
+            shopDomain,
+            installationId,
+            themeVersion
+        } = req.body;
+
+
+        if (
+            !shopDomain ||
+            !installationId
+        ) {
+
+            return res.status(400).json({
+                success: false,
+                valid: false,
+                message:
+                    "Installation information is required."
+            });
+        }
+
+
+        const normalizedShop =
+            shopDomain
+                .trim()
+                .toLowerCase()
+                .replace(
+                    /^https?:\/\//,
+                    ""
+                )
+                .replace(
+                    /\/+$/,
+                    ""
+                );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Find exact installation
+        |--------------------------------------------------------------------------
+        */
+
+        const license =
+            await License.findOne({
+                shopDomain:
+                    normalizedShop,
+
+                installationId:
+                    installationId
+            });
+
+
+        if (!license) {
+
+            return res.status(404).json({
+                success: true,
+                valid: false,
+                message:
+                    "Installation not found."
+            });
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Revoked
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            license.status ===
+            "revoked"
+        ) {
+
+            return res.json({
+                success: true,
+                valid: false,
+                status: "revoked"
+            });
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Suspended
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            license.status ===
+            "suspended"
+        ) {
+
+            return res.json({
+                success: true,
+                valid: false,
+                status: "suspended"
+            });
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Expiration
+        |--------------------------------------------------------------------------
+        */
+
+        const expired =
+            await checkLicenseExpiry(
+                license
+            );
+
+
+        if (expired) {
+
+            return res.json({
+                success: true,
+                valid: false,
+                status: "expired"
+            });
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Must be active
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            license.status !==
+            "active"
+        ) {
+
+            return res.json({
+                success: true,
+                valid: false,
+                status:
+                    license.status
+            });
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Update installation activity
+        |--------------------------------------------------------------------------
+        */
+
+        const now =
+            new Date();
+
+        license.lastSeenAt =
+            now;
+
+        license.lastCheckedAt =
+            now;
+
+        license.themeVersion =
+            themeVersion ||
+            license.themeVersion ||
+            null;
+
+
+        await license.save();
+
+
+        return res.json({
+            success: true,
+            valid: true,
+
+            status:
+                license.status,
+
+            themeVersion:
+                license.themeVersion,
+
+            expiresAt:
+                license.expiresAt,
+
+            lastSeenAt:
+                license.lastSeenAt
+        });
+
+
+    } catch (error) {
+
+        console.error(
+            "License heartbeat error:",
+            error
+        );
+
+
+        return res.status(500).json({
+            success: false,
+            valid: false,
+            message:
+                "Heartbeat failed."
+        });
+    }
+};
