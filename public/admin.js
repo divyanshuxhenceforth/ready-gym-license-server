@@ -1579,8 +1579,8 @@ function toggleExpirationField() {
         renewYearButton.hidden =
             true;
 
-        renewLicenseButton.hidden =
-            true;
+        // renewLicenseButton.hidden =
+        //     true;
 
         renewalDateGroup.hidden =
             true;
@@ -1615,8 +1615,8 @@ function toggleExpirationField() {
             renewYearButton.hidden =
                 true;
 
-            renewLicenseButton.hidden =
-                true;
+            // renewLicenseButton.hidden =
+            //     true;
 
             renewalDateGroup.hidden =
                 true;
@@ -1640,8 +1640,8 @@ function toggleExpirationField() {
             renewYearButton.hidden =
                 false;
 
-            renewLicenseButton.hidden =
-                false;
+            // renewLicenseButton.hidden =
+            //     false;
 
             renewalDateGroup.hidden =
                 false;
@@ -2032,8 +2032,8 @@ async function renewLicenseUntil(
     renewYearButton.disabled =
         true;
 
-    renewLicenseButton.disabled =
-        true;
+    // renewLicenseButton.disabled =
+    //     true;
 
     licenseModalMessage.textContent =
         "Renewing license...";
@@ -2091,8 +2091,8 @@ async function renewLicenseUntil(
         renewYearButton.disabled =
             false;
 
-        renewLicenseButton.disabled =
-            false;
+        // renewLicenseButton.disabled =
+        //     false;
 
     }
 
@@ -2280,8 +2280,8 @@ function updateLicenseModalActions(
         renewYearButton.hidden =
             true;
 
-        renewLicenseButton.hidden =
-            true;
+        // renewLicenseButton.hidden =
+        //     true;
 
         renewalDateGroup.hidden =
             true;
@@ -2311,8 +2311,8 @@ function updateLicenseModalActions(
         renewYearButton.hidden =
             true;
 
-        renewLicenseButton.hidden =
-            true;
+        // renewLicenseButton.hidden =
+        //     true;
 
         renewalDateGroup.hidden =
             true;
@@ -2346,8 +2346,8 @@ function updateLicenseModalActions(
     renewYearButton.hidden =
         false;
 
-    renewLicenseButton.hidden =
-        false;
+    // renewLicenseButton.hidden =
+    //     false;
 
     renewalDateGroup.hidden =
         false;
