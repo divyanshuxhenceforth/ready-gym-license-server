@@ -1259,7 +1259,8 @@ exports.unsuspendLicense =
 |--------------------------------------------------------------------------
 */
 
-async function updateLicense(req, res) {
+exports.updateLicense =
+    async (req, res) => {
 
     try {
 
@@ -1697,7 +1698,7 @@ async function updateLicense(req, res) {
 
     }
 
-}
+};
 
 /*
 |--------------------------------------------------------------------------
