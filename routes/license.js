@@ -1,19 +1,19 @@
 const express = require("express");
 
 const {
+    checkLicense,
+    deactivateLicense,
     createLicense,
     activateLicense,
-    checkLicense,
-    publicCheckLicense,
-    deactivateLicense,
-    refreshLicense,
     getLicenses,
     suspendLicense,
     unsuspendLicense,
     updateLicense,
-    adminActivateLicense,
     adminDeactivateLicense,
+    adminActivateLicense,
     revokeLicense,
+    refreshLicense,
+    publicCheckLicense,
     publicIntegrityCheck,
     licenseHeartbeat
 } = require("../controllers/licenseController");
