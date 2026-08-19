@@ -117,5 +117,10 @@ router.post(
     publicIntegrityCheck
 );
 
+router.post(
+    "/heartbeat",
+    licenseHeartbeat
+);
+
 
 module.exports = router;
