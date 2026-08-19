@@ -1549,11 +1549,17 @@ function toggleExpirationField() {
 
     /*
     |--------------------------------------------------------------------------
-    | LIFETIME
+    | LIFETIME PLAN
     |--------------------------------------------------------------------------
     */
 
     if (isLifetime) {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Lifetime has no expiration date
+        |--------------------------------------------------------------------------
+        */
 
         expiresInput.value =
             "";
@@ -1561,17 +1567,32 @@ function toggleExpirationField() {
         expiresInput.disabled =
             true;
 
-        renewalDateGroup.style.display =
-            "none";
+        /*
+        |--------------------------------------------------------------------------
+        | Hide ALL renewal options
+        |--------------------------------------------------------------------------
+        */
 
-        renewLicenseButton.style.display =
+        renewMonthButton.hidden =
+            true;
+
+        renewYearButton.hidden =
+            true;
+
+        renewLicenseButton.hidden =
+            true;
+
+        renewalDateGroup.hidden =
+            true;
+
+        renewalDateGroup.style.display =
             "none";
 
     }
 
     /*
     |--------------------------------------------------------------------------
-    | NORMAL PLAN
+    | NORMAL MONTHLY / YEARLY PLAN
     |--------------------------------------------------------------------------
     */
 
@@ -1582,25 +1603,51 @@ function toggleExpirationField() {
 
         /*
         |--------------------------------------------------------------------------
-        | REVOKED LICENSE
+        | Revoked license
         |--------------------------------------------------------------------------
         */
 
         if (isRevoked) {
 
+            renewMonthButton.hidden =
+                true;
+
+            renewYearButton.hidden =
+                true;
+
+            renewLicenseButton.hidden =
+                true;
+
+            renewalDateGroup.hidden =
+                true;
+
             renewalDateGroup.style.display =
                 "none";
 
-            renewLicenseButton.style.display =
-                "none";
+        }
 
-        } else {
+        /*
+        |--------------------------------------------------------------------------
+        | Active / Inactive / Suspended / Expired
+        |--------------------------------------------------------------------------
+        */
+
+        else {
+
+            renewMonthButton.hidden =
+                false;
+
+            renewYearButton.hidden =
+                false;
+
+            renewLicenseButton.hidden =
+                false;
+
+            renewalDateGroup.hidden =
+                false;
 
             renewalDateGroup.style.display =
                 "flex";
-
-            renewLicenseButton.style.display =
-                "inline-block";
 
         }
 
@@ -1609,13 +1656,27 @@ function toggleExpirationField() {
 
     /*
     |--------------------------------------------------------------------------
-    | FINAL ACTION CHECK
+    | SAVE BUTTON
+    |--------------------------------------------------------------------------
+    |
+    | Lifetime can still be saved as a plan change.
+    |
+    | Only renewal controls are hidden.
+    |
     |--------------------------------------------------------------------------
     */
 
-    updateLicenseModalActions(
-        license?.status
-    );
+    if (isRevoked) {
+
+        saveLicenseButton.hidden =
+            true;
+
+    } else {
+
+        saveLicenseButton.hidden =
+            false;
+
+    }
 
 }
 
@@ -2160,20 +2221,54 @@ renewYearButton.addEventListener(
 |--------------------------------------------------------------------------
 */
 
+/*
+|--------------------------------------------------------------------------
+| UPDATE MODAL ACTIONS
+|--------------------------------------------------------------------------
+*/
+
 function updateLicenseModalActions(
     status
 ) {
 
-    const isRevoked =
+    const license =
+        allLicenses.find(
+            (item) =>
+                String(
+                    item._id
+                ) ===
+                String(
+                    selectedLicenseId
+                )
+        );
+
+    const currentPlan =
         String(
-            status || ""
-        ).toLowerCase() ===
+            detailPlan?.value ||
+            license?.plan ||
+            ""
+        ).toLowerCase();
+
+    const currentStatus =
+        String(
+            status ||
+            license?.status ||
+            ""
+        ).toLowerCase();
+
+
+    const isLifetime =
+        currentPlan ===
+        "lifetime";
+
+    const isRevoked =
+        currentStatus ===
         "revoked";
 
 
     /*
     |--------------------------------------------------------------------------
-    | REVOKED
+    | REVOKED LICENSE
     |--------------------------------------------------------------------------
     */
 
@@ -2188,10 +2283,13 @@ function updateLicenseModalActions(
         renewLicenseButton.hidden =
             true;
 
-        saveLicenseButton.hidden =
+        renewalDateGroup.hidden =
             true;
 
-        renewalDateGroup.hidden =
+        renewalDateGroup.style.display =
+            "none";
+
+        saveLicenseButton.hidden =
             true;
 
         return;
@@ -2201,7 +2299,44 @@ function updateLicenseModalActions(
 
     /*
     |--------------------------------------------------------------------------
-    | NORMAL
+    | LIFETIME LICENSE
+    |--------------------------------------------------------------------------
+    */
+
+    if (isLifetime) {
+
+        renewMonthButton.hidden =
+            true;
+
+        renewYearButton.hidden =
+            true;
+
+        renewLicenseButton.hidden =
+            true;
+
+        renewalDateGroup.hidden =
+            true;
+
+        renewalDateGroup.style.display =
+            "none";
+
+        /*
+        |--------------------------------------------------------------------------
+        | Save is still allowed
+        |--------------------------------------------------------------------------
+        */
+
+        saveLicenseButton.hidden =
+            false;
+
+        return;
+
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | MONTHLY / YEARLY
     |--------------------------------------------------------------------------
     */
 
@@ -2214,10 +2349,13 @@ function updateLicenseModalActions(
     renewLicenseButton.hidden =
         false;
 
-    saveLicenseButton.hidden =
+    renewalDateGroup.hidden =
         false;
 
-    renewalDateGroup.hidden =
+    renewalDateGroup.style.display =
+        "flex";
+
+    saveLicenseButton.hidden =
         false;
 
 }
