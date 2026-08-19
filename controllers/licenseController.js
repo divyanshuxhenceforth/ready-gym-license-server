@@ -787,34 +787,32 @@ exports.activateLicense = async (req, res) => {
 
         const token =
             jwt.sign(
-
                 {
+                    type:
+                        "readygym_installation",
+        
                     licenseId:
                         license._id.toString(),
-
+        
                     licenseKey:
                         license.licenseKey,
-
+        
                     shopDomain:
                         normalizedShop,
-
-                    themeName:
-                        license.themeName,
-
-                    plan:
-                        license.plan,
-
+        
+                    installationId:
+                        license.installationId,
+        
                     tokenVersion:
                         license.tokenVersion
                 },
-
+        
                 process.env.JWT_SECRET,
-
+        
                 {
                     expiresIn:
                         "30d"
                 }
-
             );
 
 
