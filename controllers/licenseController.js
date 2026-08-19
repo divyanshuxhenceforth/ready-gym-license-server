@@ -1253,229 +1253,451 @@ exports.unsuspendLicense =
 |--------------------------------------------------------------------------
 */
 
-exports.updateLicense =
-    async (req, res) => {
-        try {
-            const { id } =
-                req.params;
+/*
+|--------------------------------------------------------------------------
+| UPDATE LICENSE
+|--------------------------------------------------------------------------
+*/
 
-            const {
-                plan,
-                expiresAt,
-                themeName,
-                renew = false
-            } = req.body;
+async function updateLicense(req, res) {
 
-            const license =
-                await License.findById(
-                    id
-                );
+    try {
 
-            if (!license) {
-                return res.status(404).json({
+        const { id } = req.params;
+
+        const {
+            plan,
+            themeName,
+            expiresAt,
+            renew
+        } = req.body;
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | FIND LICENSE
+        |--------------------------------------------------------------------------
+        */
+
+        const license =
+            await License.findById(id);
+
+        if (!license) {
+
+            return res.status(404).json({
+                success: false,
+                message: "License not found."
+            });
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | REVOKED LICENSE
+        |--------------------------------------------------------------------------
+        |
+        | Revoked licenses cannot be restored.
+        |
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            String(
+                license.status || ""
+            ).toLowerCase() ===
+            "revoked"
+        ) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Revoked licenses cannot be updated or reactivated."
+            });
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | UPDATE THEME NAME
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            typeof themeName ===
+            "string" &&
+            themeName.trim()
+        ) {
+
+            license.themeName =
+                themeName.trim();
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | UPDATE PLAN
+        |--------------------------------------------------------------------------
+        */
+
+        if (plan) {
+
+            const allowedPlans = [
+                "monthly",
+                "yearly",
+                "lifetime"
+            ];
+
+            if (
+                !allowedPlans.includes(
+                    plan
+                )
+            ) {
+
+                return res.status(400).json({
                     success: false,
                     message:
-                        "License not found"
+                        "Invalid license plan."
                 });
+
             }
+
+            license.plan =
+                plan;
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | LIFETIME PLAN
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            license.plan ===
+            "lifetime"
+        ) {
+
+            license.expiresAt =
+                null;
 
             /*
             |--------------------------------------------------------------------------
-            | REVOKED
+            | Lifetime license should be active
+            |--------------------------------------------------------------------------
+            |
+            | Only restore if it is currently expired.
+            | Do not restore revoked licenses.
+            |
             |--------------------------------------------------------------------------
             */
 
             if (
                 license.status ===
-                "revoked"
+                "expired"
             ) {
-                return res.status(403).json({
+
+                license.status =
+                    "active";
+
+            }
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | NORMAL PLAN
+        |--------------------------------------------------------------------------
+        */
+
+        else if (
+            expiresAt !==
+            undefined
+        ) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Empty expiration date
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                expiresAt ===
+                null ||
+                expiresAt ===
+                ""
+            ) {
+
+                return res.status(400).json({
                     success: false,
                     message:
-                        "Revoked licenses cannot be renewed"
+                        "Expiration date is required for monthly and yearly licenses."
                 });
+
             }
+
 
             /*
             |--------------------------------------------------------------------------
-            | PLAN
+            | PARSE EXPIRATION DATE
+            |--------------------------------------------------------------------------
+            */
+
+            const newExpiration =
+                new Date(
+                    `${expiresAt}T23:59:59`
+                );
+
+
+            if (
+                Number.isNaN(
+                    newExpiration.getTime()
+                )
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Invalid expiration date."
+                });
+
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | EXPIRATION MUST BE IN FUTURE
             |--------------------------------------------------------------------------
             */
 
             if (
-                plan !== undefined
+                newExpiration <=
+                new Date()
             ) {
-                const allowedPlans = [
-                    "monthly",
-                    "yearly",
-                    "lifetime"
-                ];
 
-                if (
-                    !allowedPlans.includes(
-                        plan
-                    )
-                ) {
-                    return res.status(400).json({
-                        success: false,
-                        message:
-                            "Invalid plan"
-                    });
-                }
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Expiration date must be in the future."
+                });
 
-                license.plan =
-                    plan;
             }
+
 
             /*
             |--------------------------------------------------------------------------
-            | THEME NAME
+            | SAVE NEW EXPIRATION
+            |--------------------------------------------------------------------------
+            */
+
+            license.expiresAt =
+                newExpiration;
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | REACTIVATE EXPIRED LICENSE
+            |--------------------------------------------------------------------------
+            |
+            | THIS FIXES YOUR ISSUE.
+            |
             |--------------------------------------------------------------------------
             */
 
             if (
-                themeName !== undefined
+                license.status ===
+                "expired"
             ) {
-                license.themeName =
-                    themeName.trim() ||
-                    "Ready Gym";
+
+                license.status =
+                    "active";
+
             }
+
 
             /*
             |--------------------------------------------------------------------------
-            | LIFETIME
+            | REACTIVATE SUSPENDED LICENSE?
+            |--------------------------------------------------------------------------
+            |
+            | Do NOT automatically unsuspend a suspended license.
+            |
             |--------------------------------------------------------------------------
             */
+
+            if (
+                license.status ===
+                "suspended"
+            ) {
+
+                /*
+                |--------------------------------------------------------------------------
+                | Keep suspended.
+                |--------------------------------------------------------------------------
+                */
+
+            }
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | RENEW FLAG
+        |--------------------------------------------------------------------------
+        |
+        | Kept for backward compatibility with old requests.
+        |
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            renew === true &&
+            license.status !==
+            "revoked"
+        ) {
 
             if (
                 license.plan ===
                 "lifetime"
             ) {
+
                 license.expiresAt =
                     null;
 
-                if (
-                    renew === true
-                ) {
-                    license.status =
-                        "active";
+                license.status =
+                    "active";
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | Renewal invalidates old token.
-                    |--------------------------------------------------------------------------
-                    */
+            } else if (
+                license.expiresAt &&
+                new Date(
+                    license.expiresAt
+                ) > new Date()
+            ) {
 
-                    license.tokenVersion =
-                        Number(
-                            license.tokenVersion ||
-                                0
-                        ) + 1;
-                }
+                license.status =
+                    "active";
+
             }
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | TOKEN VERSION
+        |--------------------------------------------------------------------------
+        |
+        | If an expired license is restored, issue a new
+        | token version so the installation can refresh.
+        |
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            license.status ===
+            "active"
+        ) {
 
             /*
             |--------------------------------------------------------------------------
-            | MONTHLY / YEARLY
+            | Only increment when restoring an expired license
             |--------------------------------------------------------------------------
             */
 
-            else if (
-                expiresAt !==
-                undefined
+            if (
+                license.tokenVersion ===
+                undefined ||
+                license.tokenVersion ===
+                null
             ) {
-                if (
-                    expiresAt ===
-                        null ||
-                    expiresAt === ""
-                ) {
-                    return res.status(400).json({
-                        success: false,
-                        message:
-                            "Expiration date is required for monthly/yearly licenses"
-                    });
-                }
 
-                const date =
-                    new Date(
-                        expiresAt
-                    );
+                license.tokenVersion =
+                    0;
 
-                if (
-                    Number.isNaN(
-                        date.getTime()
-                    )
-                ) {
-                    return res.status(400).json({
-                        success: false,
-                        message:
-                            "Invalid expiration date"
-                    });
-                }
-
-                if (
-                    renew === true &&
-                    date <=
-                        new Date()
-                ) {
-                    return res.status(400).json({
-                        success: false,
-                        message:
-                            "Renewal date must be in the future"
-                    });
-                }
-
-                license.expiresAt =
-                    date;
-
-                if (
-                    renew === true
-                ) {
-                    license.status =
-                        "active";
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | Renewal invalidates old token.
-                    | refreshLicense supports the previous token version once.
-                    |--------------------------------------------------------------------------
-                    */
-
-                    license.tokenVersion =
-                        Number(
-                            license.tokenVersion ||
-                                0
-                        ) + 1;
-                }
             }
 
-            await license.save();
-
-            return res.json({
-                success: true,
-
-                message:
-                    renew === true
-                        ? "License renewed successfully"
-                        : "License updated successfully",
-
-                license
-            });
-
-        } catch (error) {
-            console.error(
-                "Update license error:",
-                error
-            );
-
-            return res.status(500).json({
-                success: false,
-                message:
-                    error.message ||
-                    "Failed to update license"
-            });
         }
-    };
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | SAVE
+        |--------------------------------------------------------------------------
+        */
+
+        await license.save();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | RESPONSE
+        |--------------------------------------------------------------------------
+        */
+
+        return res.json({
+
+            success: true,
+
+            message:
+                "License updated successfully.",
+
+            license: {
+
+                _id:
+                    license._id,
+
+                licenseKey:
+                    license.licenseKey,
+
+                shopDomain:
+                    license.shopDomain,
+
+                themeName:
+                    license.themeName,
+
+                plan:
+                    license.plan,
+
+                status:
+                    license.status,
+
+                expiresAt:
+                    license.expiresAt,
+
+                activatedAt:
+                    license.activatedAt,
+
+                tokenVersion:
+                    license.tokenVersion
+
+            }
+
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Update license error:",
+            error
+        );
+
+        return res.status(500).json({
+
+            success: false,
+
+            message:
+                "Failed to update license."
+
+        });
+
+    }
+
+}
 
 /*
 |--------------------------------------------------------------------------
