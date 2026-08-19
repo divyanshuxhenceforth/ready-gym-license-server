@@ -2029,9 +2029,18 @@ exports.publicIntegrityCheck = async (req, res) => {
             });
         }
 
-        license.lastCheckedAt =
+       const now =
             new Date();
-
+        
+        license.lastCheckedAt =
+            now;
+        
+        license.lastIntegrityCheckAt =
+            now;
+        
+        license.lastSeenAt =
+            now;
+        
         await license.save();
 
         return res.json({
