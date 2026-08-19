@@ -631,11 +631,7 @@ function renderLicenses(
                                 </button>
                             `
 
-                            : `
-                                <span>
-                                    No action
-                                </span>
-                            `
+                            : ``
                         }
 
                         ${
