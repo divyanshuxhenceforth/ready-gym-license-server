@@ -14,7 +14,8 @@ const {
     adminActivateLicense,
     adminDeactivateLicense,
     revokeLicense,
-    publicIntegrityCheck
+    publicIntegrityCheck,
+    licenseHeartbeat
 } = require("../controllers/licenseController");
 
 const adminAuth =
