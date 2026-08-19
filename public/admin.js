@@ -588,16 +588,20 @@ function renderLicenses(
 
                 <td>
                     ${escapeHtml(
-                        license.plan
+                        capitalizeFirstLetter(
+                            license.plan
+                        )
                     )}
                 </td>
-
+                
                 <td>
                     <span class="status status-${escapeHtml(
                         license.status
                     )}">
                         ${escapeHtml(
-                            license.status
+                            capitalizeFirstLetter(
+                                license.status
+                            )
                         )}
                     </span>
                 </td>
@@ -917,6 +921,31 @@ function escapeHtml(
             /'/g,
             "&#039;"
         );
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| CAPITALIZE FIRST LETTER
+|--------------------------------------------------------------------------
+*/
+
+function capitalizeFirstLetter(
+    value
+) {
+
+    if (!value) {
+        return "-";
+    }
+
+    const text =
+        String(value);
+
+    return (
+        text.charAt(0).toUpperCase() +
+        text.slice(1)
+    );
 
 }
 
