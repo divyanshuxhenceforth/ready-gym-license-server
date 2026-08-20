@@ -35,16 +35,21 @@ function normalizeShopDomain(shopDomain) {
 /**
  * Convert YYYY-MM-DD into a UTC date.
  *
- * Important:
- * We intentionally use UTC here so that:
+ * IMPORTANT:
  *
- * 26 Aug 2026
+ * We deliberately store the selected calendar date
+ * at the END of that UTC day.
  *
- * always remains:
+ * Example:
  *
- * 26 Aug 2026
+ * Input:
+ * 2026-08-23
  *
- * regardless of server timezone or browser timezone.
+ * Stored:
+ * 2026-08-23T23:59:59.999Z
+ *
+ * This prevents timezone conversion from changing
+ * 23 Aug into 24 Aug.
  */
 function parseDateOnly(dateString) {
     if (
@@ -59,7 +64,7 @@ function parseDateOnly(dateString) {
 
     /*
     |--------------------------------------------------------------------------
-    | Require YYYY-MM-DD
+    | REQUIRE YYYY-MM-DD
     |--------------------------------------------------------------------------
     */
 
@@ -81,7 +86,7 @@ function parseDateOnly(dateString) {
 
     /*
     |--------------------------------------------------------------------------
-    | Validate actual calendar date
+    | VALIDATE CALENDAR DATE
     |--------------------------------------------------------------------------
     */
 
@@ -108,9 +113,13 @@ function parseDateOnly(dateString) {
 
     /*
     |--------------------------------------------------------------------------
-    | Prevent invalid dates such as:
+    | PREVENT INVALID DATES
+    |--------------------------------------------------------------------------
+    |
+    | Example:
     |
     | 2026-02-31
+    |
     |--------------------------------------------------------------------------
     */
 
@@ -130,16 +139,10 @@ function parseDateOnly(dateString) {
 
 
 /**
- * Convert a stored expiration date back to
- * YYYY-MM-DD without local timezone conversion.
+ * Convert stored date into YYYY-MM-DD.
  *
- * Example:
- *
- * 2026-08-26T23:59:59.999Z
- *
- * becomes:
- *
- * 2026-08-26
+ * IMPORTANT:
+ * Always use UTC values here.
  */
 function formatDateOnly(date) {
     if (!date) {
@@ -173,25 +176,76 @@ function formatDateOnly(date) {
     return `${year}-${month}-${day}`;
 }
 
+
+/**
+ * Create automatic expiration date.
+ *
+ * Automatic expiration starts from activation date.
+ */
+function calculateAutomaticExpiration(
+    plan,
+    activationDate
+) {
+    if (
+        plan === "lifetime"
+    ) {
+        return null;
+    }
+
+    const expiresAt =
+        new Date(
+            activationDate
+        );
+
+    if (
+        plan === "monthly"
+    ) {
+        expiresAt.setUTCMonth(
+            expiresAt.getUTCMonth() + 1
+        );
+
+        return expiresAt;
+    }
+
+    if (
+        plan === "yearly"
+    ) {
+        expiresAt.setUTCFullYear(
+            expiresAt.getUTCFullYear() + 1
+        );
+
+        return expiresAt;
+    }
+
+    return null;
+}
+
+
 /**
  * Create signed Ready Gym installation token.
  */
 function createInstallationToken(license) {
     return jwt.sign(
         {
-            type: "readygym_installation",
+            type:
+                "readygym_installation",
 
-            licenseId: license._id.toString(),
+            licenseId:
+                license._id.toString(),
 
-            licenseKey: license.licenseKey,
+            licenseKey:
+                license.licenseKey,
 
-            shopDomain: license.shopDomain,
+            shopDomain:
+                license.shopDomain,
 
-            installationId: license.installationId,
+            installationId:
+                license.installationId,
 
-            tokenVersion: Number(
-                license.tokenVersion || 0
-            )
+            tokenVersion:
+                Number(
+                    license.tokenVersion || 0
+                )
         },
 
         process.env.JWT_SECRET,
@@ -202,6 +256,7 @@ function createInstallationToken(license) {
     );
 }
 
+
 /**
  * Extract Bearer token.
  */
@@ -211,28 +266,36 @@ function getBearerToken(req) {
 
     if (
         !authHeader ||
-        !authHeader.startsWith("Bearer ")
+        !authHeader.startsWith(
+            "Bearer "
+        )
     ) {
         return null;
     }
 
-    return authHeader.substring(7).trim();
+    return authHeader
+        .substring(7)
+        .trim();
 }
+
 
 /**
  * Verify Ready Gym installation token.
  */
-function verifyInstallationToken(token) {
+function verifyInstallationToken(
+    token
+) {
     if (!token) {
         throw new Error(
             "Installation token is required"
         );
     }
 
-    const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET
-    );
+    const decoded =
+        jwt.verify(
+            token,
+            process.env.JWT_SECRET
+        );
 
     if (
         decoded.type !==
@@ -246,15 +309,9 @@ function verifyInstallationToken(token) {
     return decoded;
 }
 
+
 /**
- * Validate installation token against license.
- *
- * This helper checks:
- * - license exists
- * - license key
- * - installation ID
- * - shop
- * - token version
+ * Authenticate installation.
  */
 async function getAuthenticatedLicense(
     req
@@ -399,6 +456,7 @@ async function getAuthenticatedLicense(
     };
 }
 
+
 /*
 |--------------------------------------------------------------------------
 | CHECK LICENSE
@@ -411,8 +469,7 @@ exports.checkLicense = async (
 ) => {
     try {
         const {
-            license,
-            decoded
+            license
         } =
             await getAuthenticatedLicense(
                 req
@@ -469,7 +526,8 @@ exports.checkLicense = async (
             return res.status(403).json({
                 success: false,
                 valid: false,
-                status: "expired",
+                status:
+                    "expired",
                 message:
                     "License has expired"
             });
@@ -554,6 +612,7 @@ exports.checkLicense = async (
     }
 };
 
+
 /*
 |--------------------------------------------------------------------------
 | DEACTIVATE LICENSE FROM SHOPIFY
@@ -561,21 +620,17 @@ exports.checkLicense = async (
 */
 
 exports.deactivateLicense =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             const {
-                license,
-                decoded
+                license
             } =
                 await getAuthenticatedLicense(
                     req
                 );
-
-            /*
-            |--------------------------------------------------------------------------
-            | RELEASE LICENSE
-            |--------------------------------------------------------------------------
-            */
 
             license.shopDomain =
                 null;
@@ -585,12 +640,6 @@ exports.deactivateLicense =
 
             license.status =
                 "inactive";
-
-            /*
-            |--------------------------------------------------------------------------
-            | INVALIDATE TOKEN
-            |--------------------------------------------------------------------------
-            */
 
             license.tokenVersion =
                 Number(
@@ -635,149 +684,283 @@ exports.deactivateLicense =
         }
     };
 
+
 /*
 |--------------------------------------------------------------------------
 | CREATE LICENSE
 |--------------------------------------------------------------------------
 */
 
-exports.createLicense = async (
-    req,
-    res
-) => {
-    try {
-        const {
-            plan = "lifetime",
-            themeName = "Ready Gym"
-        } = req.body;
+exports.createLicense =
+    async (
+        req,
+        res
+    ) => {
+        try {
+            const {
+                plan = "lifetime",
+                themeName = "Ready Gym",
+                expiryMode = "automatic",
+                expiresAt
+            } = req.body;
 
-        const allowedPlans = [
-            "monthly",
-            "yearly",
-            "lifetime"
-        ];
+            const allowedPlans = [
+                "monthly",
+                "yearly",
+                "lifetime"
+            ];
 
-        if (
-            !allowedPlans.includes(
-                plan
-            )
-        ) {
-            return res.status(400).json({
+            const allowedExpiryModes = [
+                "automatic",
+                "manual"
+            ];
+
+            /*
+            |--------------------------------------------------------------------------
+            | VALIDATE PLAN
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                !allowedPlans.includes(
+                    plan
+                )
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Invalid plan"
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | LIFETIME ALWAYS USES AUTOMATIC
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                plan === "lifetime" &&
+                expiryMode === "manual"
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Lifetime licenses cannot use manual expiration."
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | VALIDATE EXPIRY MODE
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                !allowedExpiryModes.includes(
+                    expiryMode
+                )
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Invalid expiration mode."
+                });
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | MANUAL DATE
+            |--------------------------------------------------------------------------
+            */
+
+            let manualExpiration =
+                null;
+
+            if (
+                plan !== "lifetime" &&
+                expiryMode === "manual"
+            ) {
+                if (
+                    !expiresAt
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Expiration date is required for manual expiration."
+                    });
+                }
+
+                manualExpiration =
+                    parseDateOnly(
+                        expiresAt
+                    );
+
+                if (
+                    !manualExpiration
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Invalid expiration date. Use YYYY-MM-DD."
+                    });
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | MUST BE FUTURE
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    manualExpiration <=
+                    new Date()
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Expiration date must be in the future."
+                    });
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | GENERATE UNIQUE LICENSE KEY
+            |--------------------------------------------------------------------------
+            */
+
+            let licenseKey;
+            let existingLicense;
+
+            do {
+                licenseKey =
+                    generateLicenseKey();
+
+                existingLicense =
+                    await License.findOne({
+                        licenseKey
+                    });
+            } while (
+                existingLicense
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | CREATE LICENSE
+            |--------------------------------------------------------------------------
+            */
+
+            const license =
+                await License.create({
+                    licenseKey,
+
+                    shopDomain:
+                        null,
+
+                    installationId:
+                        null,
+
+                    themeName:
+                        themeName?.trim() ||
+                        "Ready Gym",
+
+                    status:
+                        "inactive",
+
+                    plan,
+
+                    expiryMode:
+                        plan === "lifetime"
+                            ? "automatic"
+                            : expiryMode,
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | IMPORTANT
+                    |--------------------------------------------------------------------------
+                    |
+                    | Automatic expiration starts on activation.
+                    |
+                    | Manual expiration is saved immediately.
+                    |
+                    |--------------------------------------------------------------------------
+                    */
+
+                    expiresAt:
+                        manualExpiration,
+
+                    activatedAt:
+                        null,
+
+                    lastCheckedAt:
+                        null,
+
+                    lastSeenAt:
+                        null,
+
+                    lastIntegrityCheckAt:
+                        null,
+
+                    themeVersion:
+                        null,
+
+                    tokenVersion:
+                        0
+                });
+
+            return res.status(201).json({
+                success: true,
+
+                message:
+                    "License created successfully",
+
+                license: {
+                    id:
+                        license._id,
+
+                    licenseKey:
+                        license.licenseKey,
+
+                    themeName:
+                        license.themeName,
+
+                    plan:
+                        license.plan,
+
+                    expiryMode:
+                        license.expiryMode,
+
+                    status:
+                        license.status,
+
+                    expiresAt:
+                        license.expiresAt,
+
+                    expiresAtDate:
+                        formatDateOnly(
+                            license.expiresAt
+                        ),
+
+                    activatedAt:
+                        license.activatedAt
+                }
+            });
+
+        } catch (error) {
+            console.error(
+                "Create license error:",
+                error
+            );
+
+            return res.status(500).json({
                 success: false,
                 message:
-                    "Invalid plan"
+                    "Failed to create license"
             });
         }
+    };
 
-        /*
-        |--------------------------------------------------------------------------
-        | EXPIRATION STARTS AT ACTIVATION
-        |--------------------------------------------------------------------------
-        */
-
-        let licenseKey;
-        let existingLicense;
-
-        do {
-            licenseKey =
-                generateLicenseKey();
-
-            existingLicense =
-                await License.findOne({
-                    licenseKey
-                });
-        } while (existingLicense);
-
-        /*
-        |--------------------------------------------------------------------------
-        | CREATE
-        |--------------------------------------------------------------------------
-        */
-
-        const license =
-            await License.create({
-                licenseKey,
-
-                shopDomain:
-                    null,
-
-                installationId:
-                    null,
-
-                themeName:
-                    themeName?.trim() ||
-                    "Ready Gym",
-
-                status:
-                    "inactive",
-
-                plan,
-
-                expiresAt:
-                    null,
-
-                activatedAt:
-                    null,
-
-                lastCheckedAt:
-                    null,
-
-                lastSeenAt:
-                    null,
-
-                lastIntegrityCheckAt:
-                    null,
-
-                themeVersion:
-                    null,
-
-                tokenVersion:
-                    0
-            });
-
-        return res.status(201).json({
-            success: true,
-
-            message:
-                "License created successfully",
-
-            license: {
-                id:
-                    license._id,
-
-                licenseKey:
-                    license.licenseKey,
-
-                themeName:
-                    license.themeName,
-
-                plan:
-                    license.plan,
-
-                status:
-                    license.status,
-
-                expiresAt:
-                    license.expiresAt,
-
-                activatedAt:
-                    license.activatedAt
-            }
-        });
-
-    } catch (error) {
-        console.error(
-            "Create license error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message:
-                "Failed to create license"
-        });
-    }
-};
 
 /*
 |--------------------------------------------------------------------------
@@ -786,7 +969,10 @@ exports.createLicense = async (
 */
 
 exports.activateLicense =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             const {
                 licenseKey,
@@ -965,44 +1151,97 @@ exports.activateLicense =
 
             /*
             |--------------------------------------------------------------------------
-            | CALCULATE EXPIRATION
+            | ACTIVATION DATE
             |--------------------------------------------------------------------------
             */
 
             const activationDate =
                 new Date();
 
+            /*
+            |--------------------------------------------------------------------------
+            | EXPIRATION
+            |--------------------------------------------------------------------------
+            */
+
             let expiresAt =
                 null;
 
+            /*
+            |--------------------------------------------------------------------------
+            | LIFETIME
+            |--------------------------------------------------------------------------
+            */
+
             if (
                 license.plan ===
-                "monthly"
+                "lifetime"
             ) {
                 expiresAt =
-                    new Date(
-                        activationDate
-                    );
-
-                expiresAt.setMonth(
-                    expiresAt.getMonth() +
-                        1
-                );
+                    null;
             }
 
-            if (
-                license.plan ===
-                "yearly"
+            /*
+            |--------------------------------------------------------------------------
+            | MANUAL EXPIRATION
+            |--------------------------------------------------------------------------
+            |
+            | IMPORTANT:
+            |
+            | DO NOT overwrite the manually selected date.
+            |
+            |--------------------------------------------------------------------------
+            */
+
+            else if (
+                license.expiryMode ===
+                "manual"
             ) {
                 expiresAt =
+                    license.expiresAt;
+
+                if (
+                    !expiresAt
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Manual expiration date is missing."
+                    });
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | MANUAL DATE MUST STILL BE VALID
+                |--------------------------------------------------------------------------
+                */
+
+                if (
                     new Date(
+                        expiresAt
+                    ) <=
+                    activationDate
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Manual expiration date has already passed."
+                    });
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | AUTOMATIC MONTHLY/YEARLY
+            |--------------------------------------------------------------------------
+            */
+
+            else {
+                expiresAt =
+                    calculateAutomaticExpiration(
+                        license.plan,
                         activationDate
                     );
-
-                expiresAt.setFullYear(
-                    expiresAt.getFullYear() +
-                        1
-                );
             }
 
             /*
@@ -1076,6 +1315,9 @@ exports.activateLicense =
                     plan:
                         license.plan,
 
+                    expiryMode:
+                        license.expiryMode,
+
                     shopDomain:
                         license.shopDomain,
 
@@ -1086,7 +1328,12 @@ exports.activateLicense =
                         license.activatedAt,
 
                     expiresAt:
-                        license.expiresAt
+                        license.expiresAt,
+
+                    expiresAtDate:
+                        formatDateOnly(
+                            license.expiresAt
+                        )
                 },
 
                 token
@@ -1106,6 +1353,7 @@ exports.activateLicense =
         }
     };
 
+
 /*
 |--------------------------------------------------------------------------
 | GET ALL LICENSES
@@ -1113,7 +1361,10 @@ exports.activateLicense =
 */
 
 exports.getLicenses =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             const licenses =
                 await License.find()
@@ -1143,23 +1394,22 @@ exports.getLicenses =
         }
     };
 
+
 /*
 |--------------------------------------------------------------------------
 | SUSPEND LICENSE
 |--------------------------------------------------------------------------
 |
 | IMPORTANT:
-|
-| DO NOT increment tokenVersion here.
-|
-| The existing token must remain usable after the license
-| is unsuspended. The "suspended" status itself blocks it.
-|
+| DO NOT increment tokenVersion.
 |--------------------------------------------------------------------------
 */
 
 exports.suspendLicense =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             const { id } =
                 req.params;
@@ -1199,38 +1449,8 @@ exports.suspendLicense =
                 });
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | SUSPEND
-            |--------------------------------------------------------------------------
-            */
-
             license.status =
                 "suspended";
-
-            /*
-            |--------------------------------------------------------------------------
-            | IMPORTANT
-            |--------------------------------------------------------------------------
-            | Do NOT change tokenVersion.
-            |
-            | Existing token:
-            | version 1
-            |
-            | MongoDB:
-            | version 1
-            |
-            | Status:
-            | suspended
-            |
-            | Heartbeat will return suspended.
-            |
-            | After unsuspend:
-            | status becomes active.
-            |
-            | Same token version 1 becomes valid again.
-            |--------------------------------------------------------------------------
-            */
 
             license.lastCheckedAt =
                 new Date();
@@ -1257,22 +1477,18 @@ exports.suspendLicense =
         }
     };
 
+
 /*
 |--------------------------------------------------------------------------
 | UNSUSPEND LICENSE
 |--------------------------------------------------------------------------
-|
-| IMPORTANT:
-|
-| Do NOT increment tokenVersion.
-|
-| This restores the existing installation token.
-|
-|--------------------------------------------------------------------------
 */
 
 exports.unsuspendLicense =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             const { id } =
                 req.params;
@@ -1303,7 +1519,7 @@ exports.unsuspendLicense =
 
             /*
             |--------------------------------------------------------------------------
-            | MUST STILL HAVE INSTALLATION
+            | MUST HAVE INSTALLATION
             |--------------------------------------------------------------------------
             */
 
@@ -1359,6 +1575,7 @@ exports.unsuspendLicense =
 
             return res.json({
                 success: true,
+
                 message:
                     "License unsuspended successfully",
 
@@ -1394,458 +1611,529 @@ exports.unsuspendLicense =
         }
     };
 
-/*
-|--------------------------------------------------------------------------
-| UPDATE LICENSE
-|--------------------------------------------------------------------------
-*/
 
 /*
 |--------------------------------------------------------------------------
 | UPDATE LICENSE
+|--------------------------------------------------------------------------
+|
+| This is the important date fix.
 |--------------------------------------------------------------------------
 */
 
 exports.updateLicense =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
+        try {
+            const { id } =
+                req.params;
 
-    try {
-
-        const { id } = req.params;
-
-        const {
-            plan,
-            themeName,
-            expiresAt,
-            renew
-        } = req.body;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | FIND LICENSE
-        |--------------------------------------------------------------------------
-        */
-
-        const license =
-            await License.findById(id);
-
-        if (!license) {
-
-            return res.status(404).json({
-                success: false,
-                message: "License not found."
-            });
-
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | REVOKED LICENSE
-        |--------------------------------------------------------------------------
-        |
-        | Revoked licenses cannot be restored.
-        |
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            String(
-                license.status || ""
-            ).toLowerCase() ===
-            "revoked"
-        ) {
-
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Revoked licenses cannot be updated or reactivated."
-            });
-
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | UPDATE THEME NAME
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            typeof themeName ===
-            "string" &&
-            themeName.trim()
-        ) {
-
-            license.themeName =
-                themeName.trim();
-
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | UPDATE PLAN
-        |--------------------------------------------------------------------------
-        */
-
-        if (plan) {
-
-            const allowedPlans = [
-                "monthly",
-                "yearly",
-                "lifetime"
-            ];
-
-            if (
-                !allowedPlans.includes(
-                    plan
-                )
-            ) {
-
-                return res.status(400).json({
-                    success: false,
-                    message:
-                        "Invalid license plan."
-                });
-
-            }
-
-            license.plan =
-                plan;
-
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | LIFETIME PLAN
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.plan ===
-            "lifetime"
-        ) {
-
-            license.expiresAt =
-                null;
+            const {
+                plan,
+                themeName,
+                expiresAt,
+                expiryMode,
+                renew
+            } = req.body;
 
             /*
             |--------------------------------------------------------------------------
-            | Lifetime license should be active
-            |--------------------------------------------------------------------------
-            |
-            | Only restore if it is currently expired.
-            | Do not restore revoked licenses.
-            |
+            | FIND LICENSE
             |--------------------------------------------------------------------------
             */
 
-            if (
-                license.status ===
-                "expired"
-            ) {
-
-                license.status =
-                    "active";
-
-            }
-
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | NORMAL PLAN
-        |--------------------------------------------------------------------------
-        */
-
-        else if (
-            expiresAt !==
-            undefined
-        ) {
-
-            /*
-            |--------------------------------------------------------------------------
-            | Empty expiration date
-            |--------------------------------------------------------------------------
-            */
-
-            if (
-                expiresAt ===
-                null ||
-                expiresAt ===
-                ""
-            ) {
-
-                return res.status(400).json({
-                    success: false,
-                    message:
-                        "Expiration date is required for monthly and yearly licenses."
-                });
-
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | PARSE EXPIRATION DATE
-            |--------------------------------------------------------------------------
-            */
-
-            const newExpiration =
-                new Date(
-                    `${expiresAt}T23:59:59`
+            const license =
+                await License.findById(
+                    id
                 );
 
-
-            if (
-                Number.isNaN(
-                    newExpiration.getTime()
-                )
-            ) {
-
-                return res.status(400).json({
+            if (!license) {
+                return res.status(404).json({
                     success: false,
                     message:
-                        "Invalid expiration date."
+                        "License not found."
                 });
-
             }
 
-
             /*
             |--------------------------------------------------------------------------
-            | EXPIRATION MUST BE IN FUTURE
-            |--------------------------------------------------------------------------
-            */
-
-            if (
-                newExpiration <=
-                new Date()
-            ) {
-
-                return res.status(400).json({
-                    success: false,
-                    message:
-                        "Expiration date must be in the future."
-                });
-
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | SAVE NEW EXPIRATION
-            |--------------------------------------------------------------------------
-            */
-
-            license.expiresAt =
-                newExpiration;
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | REACTIVATE EXPIRED LICENSE
-            |--------------------------------------------------------------------------
-            |
-            | THIS FIXES YOUR ISSUE.
-            |
+            | REVOKED
             |--------------------------------------------------------------------------
             */
 
             if (
                 license.status ===
-                "expired"
+                "revoked"
             ) {
-
-                license.status =
-                    "active";
-
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Revoked licenses cannot be updated or reactivated."
+                });
             }
-
 
             /*
             |--------------------------------------------------------------------------
-            | REACTIVATE SUSPENDED LICENSE?
+            | REMEMBER OLD STATUS
             |--------------------------------------------------------------------------
-            |
-            | Do NOT automatically unsuspend a suspended license.
-            |
+            */
+
+            const oldStatus =
+                license.status;
+
+            /*
+            |--------------------------------------------------------------------------
+            | UPDATE THEME NAME
             |--------------------------------------------------------------------------
             */
 
             if (
-                license.status ===
-                "suspended"
+                typeof themeName ===
+                    "string" &&
+                themeName.trim()
             ) {
-
-                /*
-                |--------------------------------------------------------------------------
-                | Keep suspended.
-                |--------------------------------------------------------------------------
-                */
-
+                license.themeName =
+                    themeName.trim();
             }
 
-        }
+            /*
+            |--------------------------------------------------------------------------
+            | UPDATE PLAN
+            |--------------------------------------------------------------------------
+            */
 
+            if (plan) {
+                const allowedPlans = [
+                    "monthly",
+                    "yearly",
+                    "lifetime"
+                ];
 
-        /*
-        |--------------------------------------------------------------------------
-        | RENEW FLAG
-        |--------------------------------------------------------------------------
-        |
-        | Kept for backward compatibility with old requests.
-        |
-        |--------------------------------------------------------------------------
-        */
+                if (
+                    !allowedPlans.includes(
+                        plan
+                    )
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Invalid license plan."
+                    });
+                }
 
-        if (
-            renew === true &&
-            license.status !==
-            "revoked"
-        ) {
+                license.plan =
+                    plan;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | UPDATE EXPIRY MODE
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                expiryMode !==
+                undefined
+            ) {
+                const allowedModes = [
+                    "automatic",
+                    "manual"
+                ];
+
+                if (
+                    !allowedModes.includes(
+                        expiryMode
+                    )
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Invalid expiration mode."
+                    });
+                }
+
+                if (
+                    license.plan ===
+                    "lifetime" &&
+                    expiryMode ===
+                        "manual"
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Lifetime licenses cannot use manual expiration."
+                    });
+                }
+
+                license.expiryMode =
+                    expiryMode;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | LIFETIME
+            |--------------------------------------------------------------------------
+            */
 
             if (
                 license.plan ===
                 "lifetime"
             ) {
+                license.expiryMode =
+                    "automatic";
 
                 license.expiresAt =
                     null;
 
-                license.status =
-                    "active";
+                /*
+                |--------------------------------------------------------------------------
+                | RESTORE EXPIRED LIFETIME
+                |--------------------------------------------------------------------------
+                */
 
-            } else if (
-                license.expiresAt &&
-                new Date(
-                    license.expiresAt
-                ) > new Date()
-            ) {
-
-                license.status =
-                    "active";
-
+                if (
+                    license.status ===
+                    "expired"
+                ) {
+                    license.status =
+                        "active";
+                }
             }
-
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | TOKEN VERSION
-        |--------------------------------------------------------------------------
-        |
-        | If an expired license is restored, issue a new
-        | token version so the installation can refresh.
-        |
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.status ===
-            "active"
-        ) {
 
             /*
             |--------------------------------------------------------------------------
-            | Only increment when restoring an expired license
+            | MONTHLY / YEARLY
+            |--------------------------------------------------------------------------
+            */
+
+            else {
+
+                /*
+                |--------------------------------------------------------------------------
+                | MANUAL MODE
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    license.expiryMode ===
+                    "manual"
+                ) {
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | DATE PROVIDED
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        expiresAt !==
+                        undefined
+                    ) {
+
+                        if (
+                            expiresAt ===
+                                null ||
+                            expiresAt ===
+                                ""
+                        ) {
+                            return res.status(400).json({
+                                success: false,
+                                message:
+                                    "Expiration date is required."
+                            });
+                        }
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | IMPORTANT DATE FIX
+                        |--------------------------------------------------------------------------
+                        |
+                        | DO NOT USE:
+                        |
+                        | new Date(`${expiresAt}T23:59:59`)
+                        |
+                        | We use parseDateOnly().
+                        |--------------------------------------------------------------------------
+                        */
+
+                        const newExpiration =
+                            parseDateOnly(
+                                expiresAt
+                            );
+
+                        if (
+                            !newExpiration
+                        ) {
+                            return res.status(400).json({
+                                success: false,
+                                message:
+                                    "Invalid expiration date. Use YYYY-MM-DD."
+                            });
+                        }
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | MUST BE FUTURE
+                        |--------------------------------------------------------------------------
+                        */
+
+                        if (
+                            newExpiration <=
+                            new Date()
+                        ) {
+                            return res.status(400).json({
+                                success: false,
+                                message:
+                                    "Expiration date must be in the future."
+                            });
+                        }
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | SAVE EXACT SELECTED DATE
+                        |--------------------------------------------------------------------------
+                        */
+
+                        license.expiresAt =
+                            newExpiration;
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | IF MANUAL MODE BUT DATE MISSING
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        !license.expiresAt
+                    ) {
+                        return res.status(400).json({
+                            success: false,
+                            message:
+                                "Manual expiration date is required."
+                        });
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | REACTIVATE EXPIRED LICENSE
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        license.status ===
+                        "expired"
+                    ) {
+                        license.status =
+                            "active";
+                    }
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | AUTOMATIC MODE
+                |--------------------------------------------------------------------------
+                */
+
+                else {
+
+                    license.expiryMode =
+                        "automatic";
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | IF PLAN/MODE CHANGED TO AUTOMATIC
+                    |--------------------------------------------------------------------------
+                    |
+                    | If the license is not activated yet,
+                    | expiration remains null.
+                    |
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        !license.activatedAt
+                    ) {
+                        license.expiresAt =
+                            null;
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | ALREADY ACTIVATED
+                    |--------------------------------------------------------------------------
+                    |
+                    | Recalculate from activation date.
+                    |
+                    |--------------------------------------------------------------------------
+                    */
+
+                    else {
+
+                        const activationDate =
+                            new Date(
+                                license.activatedAt
+                            );
+
+                        license.expiresAt =
+                            calculateAutomaticExpiration(
+                                license.plan,
+                                activationDate
+                            );
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | RESTORE EXPIRED LICENSE
+                        |--------------------------------------------------------------------------
+                        */
+
+                        if (
+                            license.expiresAt &&
+                            license.expiresAt >
+                                new Date() &&
+                            license.status ===
+                                "expired"
+                        ) {
+                            license.status =
+                                "active";
+                        }
+                    }
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | BACKWARD COMPATIBILITY
             |--------------------------------------------------------------------------
             */
 
             if (
-                license.tokenVersion ===
-                undefined ||
-                license.tokenVersion ===
-                null
+                renew === true &&
+                license.status !==
+                    "revoked"
             ) {
 
+                if (
+                    license.plan ===
+                    "lifetime"
+                ) {
+
+                    license.expiresAt =
+                        null;
+
+                    license.status =
+                        "active";
+
+                } else if (
+                    license.expiresAt &&
+                    new Date(
+                        license.expiresAt
+                    ) > new Date()
+                ) {
+
+                    license.status =
+                        "active";
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | TOKEN VERSION
+            |--------------------------------------------------------------------------
+            |
+            | If an expired license becomes active,
+            | invalidate the old token version.
+            |
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                oldStatus ===
+                    "expired" &&
+                license.status ===
+                    "active"
+            ) {
                 license.tokenVersion =
-                    0;
-
+                    Number(
+                        license.tokenVersion ||
+                            0
+                    ) + 1;
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | SAVE
+            |--------------------------------------------------------------------------
+            */
+
+            await license.save();
+
+            /*
+            |--------------------------------------------------------------------------
+            | RESPONSE
+            |--------------------------------------------------------------------------
+            */
+
+            return res.json({
+                success: true,
+
+                message:
+                    "License updated successfully.",
+
+                license: {
+                    _id:
+                        license._id,
+
+                    licenseKey:
+                        license.licenseKey,
+
+                    shopDomain:
+                        license.shopDomain,
+
+                    themeName:
+                        license.themeName,
+
+                    plan:
+                        license.plan,
+
+                    expiryMode:
+                        license.expiryMode,
+
+                    status:
+                        license.status,
+
+                    expiresAt:
+                        license.expiresAt,
+
+                    expiresAtDate:
+                        formatDateOnly(
+                            license.expiresAt
+                        ),
+
+                    activatedAt:
+                        license.activatedAt,
+
+                    tokenVersion:
+                        license.tokenVersion
+                }
+            });
+
+        } catch (error) {
+            console.error(
+                "Update license error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Failed to update license."
+            });
         }
+    };
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | SAVE
-        |--------------------------------------------------------------------------
-        */
-
-        await license.save();
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | RESPONSE
-        |--------------------------------------------------------------------------
-        */
-
-        return res.json({
-
-            success: true,
-
-            message:
-                "License updated successfully.",
-
-            license: {
-
-                _id:
-                    license._id,
-
-                licenseKey:
-                    license.licenseKey,
-
-                shopDomain:
-                    license.shopDomain,
-
-                themeName:
-                    license.themeName,
-
-                plan:
-                    license.plan,
-
-                status:
-                    license.status,
-
-                expiresAt:
-                    license.expiresAt,
-
-                activatedAt:
-                    license.activatedAt,
-
-                tokenVersion:
-                    license.tokenVersion
-
-            }
-
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Update license error:",
-            error
-        );
-
-        return res.status(500).json({
-
-            success: false,
-
-            message:
-                "Failed to update license."
-
-        });
-
-    }
-
-};
 
 /*
 |--------------------------------------------------------------------------
@@ -1854,7 +2142,10 @@ exports.updateLicense =
 */
 
 exports.adminDeactivateLicense =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             const { id } =
                 req.params;
@@ -1872,12 +2163,6 @@ exports.adminDeactivateLicense =
                 });
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | DEACTIVATE
-            |--------------------------------------------------------------------------
-            */
-
             license.status =
                 "inactive";
 
@@ -1886,12 +2171,6 @@ exports.adminDeactivateLicense =
 
             license.installationId =
                 null;
-
-            /*
-            |--------------------------------------------------------------------------
-            | INVALIDATE TOKEN
-            |--------------------------------------------------------------------------
-            */
 
             license.tokenVersion =
                 Number(
@@ -1952,19 +2231,18 @@ exports.adminDeactivateLicense =
         }
     };
 
+
 /*
 |--------------------------------------------------------------------------
 | ADMIN ACTIVATE LICENSE
 |--------------------------------------------------------------------------
-|
-| Admin must NOT activate a license.
-| Activation happens from Shopify.
-|
-|--------------------------------------------------------------------------
 */
 
 exports.adminActivateLicense =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             const { id } =
                 req.params;
@@ -2024,6 +2302,7 @@ exports.adminActivateLicense =
         }
     };
 
+
 /*
 |--------------------------------------------------------------------------
 | REVOKE LICENSE
@@ -2031,7 +2310,10 @@ exports.adminActivateLicense =
 */
 
 exports.revokeLicense =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             const { id } =
                 req.params;
@@ -2049,12 +2331,6 @@ exports.revokeLicense =
                 });
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | REVOKE
-            |--------------------------------------------------------------------------
-            */
-
             license.status =
                 "revoked";
 
@@ -2063,12 +2339,6 @@ exports.revokeLicense =
 
             license.installationId =
                 null;
-
-            /*
-            |--------------------------------------------------------------------------
-            | PERMANENT TOKEN INVALIDATION
-            |--------------------------------------------------------------------------
-            */
 
             license.tokenVersion =
                 Number(
@@ -2126,6 +2396,7 @@ exports.revokeLicense =
         }
     };
 
+
 /*
 |--------------------------------------------------------------------------
 | REFRESH LICENSE TOKEN
@@ -2133,261 +2404,269 @@ exports.revokeLicense =
 */
 
 exports.refreshLicense =
-    async (req, res) => {
-
-    try {
-
-        const token =
-            getBearerToken(req);
-
-        if (!token) {
-
-            return res.status(401).json({
-                success: false,
-                message:
-                    "Installation token required."
-            });
-
-        }
-
-        let decoded;
-
+    async (
+        req,
+        res
+    ) => {
         try {
+            const token =
+                getBearerToken(req);
 
-            decoded =
-                jwt.verify(
-                    token,
-                    process.env.JWT_SECRET
+            if (!token) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Installation token required."
+                });
+            }
+
+            let decoded;
+
+            try {
+                decoded =
+                    verifyInstallationToken(
+                        token
+                    );
+            } catch (error) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Invalid installation token."
+                });
+            }
+
+            const license =
+                await License.findById(
+                    decoded.licenseId
                 );
 
-        } catch (error) {
+            if (!license) {
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        "License not found."
+                });
+            }
 
-            return res.status(401).json({
-                success: false,
-                message:
-                    "Invalid installation token."
-            });
+            /*
+            |--------------------------------------------------------------------------
+            | VERIFY LICENSE KEY
+            |--------------------------------------------------------------------------
+            */
 
-        }
+            if (
+                license.licenseKey !==
+                decoded.licenseKey
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "Invalid license token."
+                });
+            }
 
+            /*
+            |--------------------------------------------------------------------------
+            | VERIFY INSTALLATION
+            |--------------------------------------------------------------------------
+            */
 
-        const license =
-            await License.findById(
-                decoded.licenseId
-            );
+            if (
+                !license.shopDomain ||
+                !license.installationId
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "License is not activated."
+                });
+            }
 
-        if (!license) {
+            /*
+            |--------------------------------------------------------------------------
+            | VERIFY SHOP
+            |--------------------------------------------------------------------------
+            */
 
-            return res.status(404).json({
-                success: false,
-                message:
-                    "License not found."
-            });
+            if (
+                license.shopDomain !==
+                decoded.shopDomain
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "Store mismatch."
+                });
+            }
 
-        }
+            /*
+            |--------------------------------------------------------------------------
+            | TOKEN VERSION
+            |--------------------------------------------------------------------------
+            |
+            | Current version OR immediately previous version
+            | is accepted.
+            |
+            |--------------------------------------------------------------------------
+            */
 
+            const currentVersion =
+                Number(
+                    license.tokenVersion ||
+                        0
+                );
 
-        /*
-        |--------------------------------------------------------------------------
-        | VERIFY INSTALLATION
-        |--------------------------------------------------------------------------
-        */
+            const tokenVersion =
+                Number(
+                    decoded.tokenVersion
+                );
 
-        if (
-            !license.shopDomain ||
-            !license.installationId
-        ) {
+            if (
+                tokenVersion !==
+                    currentVersion &&
+                tokenVersion !==
+                    currentVersion - 1
+            ) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Installation token is no longer valid."
+                });
+            }
 
-            return res.status(403).json({
-                success: false,
-                message:
-                    "License is not activated."
-            });
+            /*
+            |--------------------------------------------------------------------------
+            | STATUS
+            |--------------------------------------------------------------------------
+            */
 
-        }
+            if (
+                license.status ===
+                    "suspended" ||
+                license.status ===
+                    "revoked" ||
+                license.status ===
+                    "inactive"
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        `License is ${license.status}.`
+                });
+            }
 
+            /*
+            |--------------------------------------------------------------------------
+            | EXPIRATION
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | VERIFY TOKEN VERSION
-        |--------------------------------------------------------------------------
-        |
-        | Allow the previous token version so that the storefront
-        | can obtain a fresh token after admin renewal/reactivation.
-        |
-        |--------------------------------------------------------------------------
-        */
+            if (
+                license.expiresAt &&
+                new Date(
+                    license.expiresAt
+                ) <= new Date()
+            ) {
 
-        const currentVersion =
-            Number(
-                license.tokenVersion || 0
-            );
+                license.status =
+                    "expired";
 
-        const tokenVersion =
-            Number(
-                decoded.tokenVersion
-            );
+                await license.save();
 
-        if (
-            tokenVersion !==
-                currentVersion &&
-            tokenVersion !==
-                currentVersion - 1
-        ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "License has expired."
+                });
+            }
 
-            return res.status(401).json({
-                success: false,
-                message:
-                    "Installation token is no longer valid."
-            });
+            /*
+            |--------------------------------------------------------------------------
+            | CREATE NEW TOKEN
+            |--------------------------------------------------------------------------
+            */
 
-        }
+            const newToken =
+                createInstallationToken(
+                    license
+                );
 
+            /*
+            |--------------------------------------------------------------------------
+            | UPDATE ACTIVITY
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | CHECK STATUS
-        |--------------------------------------------------------------------------
-        */
+            const now =
+                new Date();
 
-        if (
-            license.status ===
-                "suspended" ||
-            license.status ===
-                "revoked" ||
-            license.status ===
-                "inactive"
-        ) {
+            license.lastCheckedAt =
+                now;
 
-            return res.status(403).json({
-                success: false,
-                message:
-                    `License is ${license.status}.`
-            });
-
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | CHECK EXPIRATION
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            license.expiresAt &&
-            new Date(
-                license.expiresAt
-            ) <= new Date()
-        ) {
-
-            license.status =
-                "expired";
+            license.lastSeenAt =
+                now;
 
             await license.save();
 
-            return res.status(403).json({
-                success: false,
-                message:
-                    "License has expired."
+            return res.json({
+                success: true,
+
+                token:
+                    newToken,
+
+                license: {
+                    themeName:
+                        license.themeName,
+
+                    plan:
+                        license.plan,
+
+                    expiryMode:
+                        license.expiryMode,
+
+                    shopDomain:
+                        license.shopDomain,
+
+                    activatedAt:
+                        license.activatedAt,
+
+                    expiresAt:
+                        license.expiresAt,
+
+                    expiresAtDate:
+                        formatDateOnly(
+                            license.expiresAt
+                        )
+                }
             });
 
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | CREATE NEW TOKEN
-        |--------------------------------------------------------------------------
-        */
-
-        const newToken =
-            createInstallationToken(
-                license
+        } catch (error) {
+            console.error(
+                "Refresh license error:",
+                error
             );
 
+            return res.status(500).json({
+                success: false,
 
-        /*
-        |--------------------------------------------------------------------------
-        | UPDATE LAST CHECK
-        |--------------------------------------------------------------------------
-        */
+                message:
+                    "Failed to refresh license."
+            });
+        }
+    };
 
-        license.lastCheckedAt =
-            new Date();
-
-        license.lastSeenAt =
-            new Date();
-
-        await license.save();
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | RESPONSE
-        |--------------------------------------------------------------------------
-        */
-
-        return res.json({
-
-            success: true,
-
-            token:
-                newToken,
-
-            license: {
-
-                themeName:
-                    license.themeName,
-
-                plan:
-                    license.plan,
-
-                shopDomain:
-                    license.shopDomain,
-
-                activatedAt:
-                    license.activatedAt,
-
-                expiresAt:
-                    license.expiresAt
-
-            }
-
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Refresh license error:",
-            error
-        );
-
-        return res.status(500).json({
-
-            success: false,
-
-            message:
-                "Failed to refresh license."
-
-        });
-
-    }
-
-};
 
 /*
 |--------------------------------------------------------------------------
 | PUBLIC LICENSE CHECK
 |--------------------------------------------------------------------------
-|
-| Minimal response.
-|
-|--------------------------------------------------------------------------
 */
 
 exports.publicCheckLicense =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             const {
                 shopDomain
@@ -2467,6 +2746,7 @@ exports.publicCheckLicense =
         }
     };
 
+
 /*
 |--------------------------------------------------------------------------
 | PUBLIC INTEGRITY CHECK
@@ -2474,7 +2754,10 @@ exports.publicCheckLicense =
 */
 
 exports.publicIntegrityCheck =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             const {
                 shopDomain,
@@ -2663,7 +2946,9 @@ exports.publicIntegrityCheck =
 
             const missingComponents =
                 requiredComponents.filter(
-                    (component) =>
+                    (
+                        component
+                    ) =>
                         components[
                             component
                         ] !== true
@@ -2735,6 +3020,7 @@ exports.publicIntegrityCheck =
         }
     };
 
+
 /*
 |--------------------------------------------------------------------------
 | LICENSE HEARTBEAT
@@ -2742,7 +3028,10 @@ exports.publicIntegrityCheck =
 */
 
 exports.licenseHeartbeat =
-    async (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             /*
             |--------------------------------------------------------------------------
@@ -3030,6 +3319,11 @@ exports.licenseHeartbeat =
 
                 expiresAt:
                     license.expiresAt,
+
+                expiresAtDate:
+                    formatDateOnly(
+                        license.expiresAt
+                    ),
 
                 lastSeenAt:
                     license.lastSeenAt
