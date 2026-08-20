@@ -747,23 +747,67 @@ createLicenseButton.addEventListener(
                 document.getElementById(
                     "licensePlan"
                 ).value;
-
+            
             const themeName =
                 document.getElementById(
                     "themeName"
                 ).value.trim() ||
                 "Ready Gym";
-
+            
+            const expiryMode =
+                document.getElementById(
+                    "expiryMode"
+                ).value;
+            
+            const manualExpiration =
+                document.getElementById(
+                    "manualExpiration"
+                ).value;
+            
+            
+            if (
+                expiryMode === "manual" &&
+                plan !== "lifetime" &&
+                !manualExpiration
+            ) {
+            
+                createMessage.textContent =
+                    "Please select an expiration date.";
+            
+                createLicenseButton.disabled =
+                    false;
+            
+                return;
+            
+            }
+            
+            
             const result =
                 await apiRequest(
                     "/api/license/create",
                     {
                         method: "POST",
-
+            
                         body:
                             JSON.stringify({
+            
                                 plan,
-                                themeName
+            
+                                themeName,
+            
+                                expiryMode,
+            
+                                expiresAt:
+                                    plan ===
+                                    "lifetime"
+                                        ? null
+                                        : (
+                                            expiryMode ===
+                                            "manual"
+                                                ? manualExpiration
+                                                : null
+                                        )
+            
                             })
                     }
                 );
