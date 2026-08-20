@@ -1412,32 +1412,20 @@ function formatDateTime(
 | HTML DATE INPUT
 |--------------------------------------------------------------------------
 |
-| Keeps calendar date exactly as stored.
-|
 | Example:
 |
-| 2026-08-26
+| 2026-08-19
 |
-|--------------------------------------------------------------------------
 */
 
-function formatDateForInput(value) {
+function formatDateForInput(
+    value
+) {
 
     if (!value) {
+
         return "";
-    }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Already a date-only value
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-        typeof value === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(value)
-    ) {
-        return value;
     }
 
     const date =
@@ -1448,26 +1436,17 @@ function formatDateForInput(value) {
             date.getTime()
         )
     ) {
+
         return "";
+
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | IMPORTANT:
-    | Use UTC because manual expiry dates are calendar dates.
-    |
-    | This prevents:
-    |
-    | 26 Aug → 27 Aug
-    |--------------------------------------------------------------------------
-    */
-
     const year =
-        date.getUTCFullYear();
+        date.getFullYear();
 
     const month =
         String(
-            date.getUTCMonth() + 1
+            date.getMonth() + 1
         ).padStart(
             2,
             "0"
@@ -1475,13 +1454,14 @@ function formatDateForInput(value) {
 
     const day =
         String(
-            date.getUTCDate()
+            date.getDate()
         ).padStart(
             2,
             "0"
         );
 
     return `${year}-${month}-${day}`;
+
 }
 
 
@@ -2144,7 +2124,10 @@ renewMonthButton.addEventListener(
 
         if (
             license &&
-            license.expiresAt
+            license.expiresAt &&
+            new Date(
+                license.expiresAt
+            ) > new Date()
         ) {
 
             date =
@@ -2152,26 +2135,16 @@ renewMonthButton.addEventListener(
                     license.expiresAt
                 );
 
-            /*
-            |--------------------------------------------------------------------------
-            | Use UTC calendar calculation
-            |--------------------------------------------------------------------------
-            */
-
-            date.setUTCMonth(
-                date.getUTCMonth() + 1
-            );
-
         } else {
 
             date =
                 new Date();
 
-            date.setUTCMonth(
-                date.getUTCMonth() + 1
-            );
-
         }
+
+        date.setMonth(
+            date.getMonth() + 1
+        );
 
         renewLicenseUntil(
             formatDateForInput(
@@ -2209,7 +2182,10 @@ renewYearButton.addEventListener(
 
         if (
             license &&
-            license.expiresAt
+            license.expiresAt &&
+            new Date(
+                license.expiresAt
+            ) > new Date()
         ) {
 
             date =
@@ -2217,26 +2193,16 @@ renewYearButton.addEventListener(
                     license.expiresAt
                 );
 
-            /*
-            |--------------------------------------------------------------------------
-            | Use UTC calendar calculation
-            |--------------------------------------------------------------------------
-            */
-
-            date.setUTCFullYear(
-                date.getUTCFullYear() + 1
-            );
-
         } else {
 
             date =
                 new Date();
 
-            date.setUTCFullYear(
-                date.getUTCFullYear() + 1
-            );
-
         }
+
+        date.setFullYear(
+            date.getFullYear() + 1
+        );
 
         renewLicenseUntil(
             formatDateForInput(
