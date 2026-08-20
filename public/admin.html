@@ -126,6 +126,36 @@
 
               <input type="text" id="themeName" value="Ready Gym" />
             </div>
+            <div class="input-group">
+              <label for="expiryMode">
+                  Expiration Mode
+              </label>
+          
+              <select id="expiryMode">
+                  <option value="automatic">
+                      Automatic
+                  </option>
+          
+                  <option value="manual">
+                      Manual
+                  </option>
+              </select>
+          </div>
+          
+          <div
+              class="input-group"
+              id="manualExpirationGroup"
+              hidden
+          >
+              <label for="manualExpiration">
+                  Expiration Date
+              </label>
+          
+              <input
+                  type="date"
+                  id="manualExpiration"
+              >
+          </div>
 
             <div class="input-group">
                 <label> Expiration </label>
