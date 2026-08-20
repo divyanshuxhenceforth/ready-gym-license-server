@@ -495,7 +495,11 @@ exports.deactivateLicense =
 */
 
 
-async function createLicense(req, res) {
+
+
+
+exports.createLicense = 
+    async (req, res) => {
 
     try {
 
@@ -726,7 +730,7 @@ async function createLicense(req, res) {
 
     }
 
-}
+};
 
 /*
 |--------------------------------------------------------------------------
