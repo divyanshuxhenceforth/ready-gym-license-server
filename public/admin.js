@@ -127,44 +127,6 @@ let selectedLicenseId = null;
 let allLicenses = [];
 
 
-const expiryMode =
-    document.getElementById(
-        "expiryMode"
-    );
-
-const manualExpirationGroup =
-    document.getElementById(
-        "manualExpirationGroup"
-    );
-
-const manualExpiration =
-    document.getElementById(
-        "manualExpiration"
-    );
-
-
-expiryMode.addEventListener(
-    "change",
-    function () {
-
-        const isManual =
-            this.value ===
-            "manual";
-
-        manualExpirationGroup.hidden =
-            !isManual;
-
-        if (!isManual) {
-
-            manualExpiration.value =
-                "";
-
-        }
-
-    }
-);
-
-
 /*
 |--------------------------------------------------------------------------
 | AUTH UI
@@ -747,67 +709,23 @@ createLicenseButton.addEventListener(
                 document.getElementById(
                     "licensePlan"
                 ).value;
-            
+
             const themeName =
                 document.getElementById(
                     "themeName"
                 ).value.trim() ||
                 "Ready Gym";
-            
-            const expiryMode =
-                document.getElementById(
-                    "expiryMode"
-                ).value;
-            
-            const manualExpiration =
-                document.getElementById(
-                    "manualExpiration"
-                ).value;
-            
-            
-            if (
-                expiryMode === "manual" &&
-                plan !== "lifetime" &&
-                !manualExpiration
-            ) {
-            
-                createMessage.textContent =
-                    "Please select an expiration date.";
-            
-                createLicenseButton.disabled =
-                    false;
-            
-                return;
-            
-            }
-            
-            
+
             const result =
                 await apiRequest(
                     "/api/license/create",
                     {
                         method: "POST",
-            
+
                         body:
                             JSON.stringify({
-            
                                 plan,
-            
-                                themeName,
-            
-                                expiryMode,
-            
-                                expiresAt:
-                                    plan ===
-                                    "lifetime"
-                                        ? null
-                                        : (
-                                            expiryMode ===
-                                            "manual"
-                                                ? manualExpiration
-                                                : null
-                                        )
-            
+                                themeName
                             })
                     }
                 );
@@ -1500,39 +1418,15 @@ function formatDateTime(
 |
 */
 
-/*
-|--------------------------------------------------------------------------
-| HTML DATE INPUT
-|--------------------------------------------------------------------------
-|
-| Keeps the exact calendar date.
-| Example:
-| 26 Aug 2026 -> 2026-08-26
-|
-|--------------------------------------------------------------------------
-*/
-
-function formatDateForInput(value) {
+function formatDateForInput(
+    value
+) {
 
     if (!value) {
+
         return "";
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | If value is already YYYY-MM-DD
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-        typeof value === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(value)
-    ) {
-
-        return value;
 
     }
-
 
     const date =
         new Date(value);
@@ -1546,13 +1440,6 @@ function formatDateForInput(value) {
         return "";
 
     }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Use local date components
-    |--------------------------------------------------------------------------
-    */
 
     const year =
         date.getFullYear();
@@ -1572,7 +1459,6 @@ function formatDateForInput(value) {
             2,
             "0"
         );
-
 
     return `${year}-${month}-${day}`;
 
