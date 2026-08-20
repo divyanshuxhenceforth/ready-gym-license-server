@@ -127,6 +127,44 @@ let selectedLicenseId = null;
 let allLicenses = [];
 
 
+const expiryMode =
+    document.getElementById(
+        "expiryMode"
+    );
+
+const manualExpirationGroup =
+    document.getElementById(
+        "manualExpirationGroup"
+    );
+
+const manualExpiration =
+    document.getElementById(
+        "manualExpiration"
+    );
+
+
+expiryMode.addEventListener(
+    "change",
+    function () {
+
+        const isManual =
+            this.value ===
+            "manual";
+
+        manualExpirationGroup.hidden =
+            !isManual;
+
+        if (!isManual) {
+
+            manualExpiration.value =
+                "";
+
+        }
+
+    }
+);
+
+
 /*
 |--------------------------------------------------------------------------
 | AUTH UI
