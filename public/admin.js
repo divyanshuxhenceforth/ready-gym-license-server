@@ -1351,7 +1351,7 @@ function formatTableDate(
         {
             day: "2-digit",
             month: "short",
-            year: "2-digit"
+            year: "numeric"
         }
     );
 
