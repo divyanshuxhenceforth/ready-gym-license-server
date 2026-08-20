@@ -1417,51 +1417,39 @@ function formatDateTime(
 | 2026-08-19
 |
 */
-
-function formatDateForInput(
-    value
-) {
+function formatDateForInput(value) {
 
     if (!value) {
-
         return "";
-
     }
 
-    const date =
-        new Date(value);
-
     if (
-        Number.isNaN(
-            date.getTime()
-        )
+        typeof value === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(value)
     ) {
+        return value;
+    }
 
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
         return "";
-
     }
 
     const year =
-        date.getFullYear();
+        date.getUTCFullYear();
 
     const month =
         String(
-            date.getMonth() + 1
-        ).padStart(
-            2,
-            "0"
-        );
+            date.getUTCMonth() + 1
+        ).padStart(2, "0");
 
     const day =
         String(
-            date.getDate()
-        ).padStart(
-            2,
-            "0"
-        );
+            date.getUTCDate()
+        ).padStart(2, "0");
 
     return `${year}-${month}-${day}`;
-
 }
 
 
