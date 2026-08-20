@@ -26,6 +26,153 @@ function normalizeShopDomain(shopDomain) {
         .replace(/\/+$/, "");
 }
 
+/*
+|--------------------------------------------------------------------------
+| DATE HELPERS
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * Convert YYYY-MM-DD into a UTC date.
+ *
+ * Important:
+ * We intentionally use UTC here so that:
+ *
+ * 26 Aug 2026
+ *
+ * always remains:
+ *
+ * 26 Aug 2026
+ *
+ * regardless of server timezone or browser timezone.
+ */
+function parseDateOnly(dateString) {
+    if (
+        !dateString ||
+        typeof dateString !== "string"
+    ) {
+        return null;
+    }
+
+    const value =
+        dateString.trim();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Require YYYY-MM-DD
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(
+            value
+        )
+    ) {
+        return null;
+    }
+
+    const [
+        year,
+        month,
+        day
+    ] = value
+        .split("-")
+        .map(Number);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Validate actual calendar date
+    |--------------------------------------------------------------------------
+    */
+
+    const date =
+        new Date(
+            Date.UTC(
+                year,
+                month - 1,
+                day,
+                23,
+                59,
+                59,
+                999
+            )
+        );
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+        return null;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Prevent invalid dates such as:
+    |
+    | 2026-02-31
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        date.getUTCFullYear() !==
+            year ||
+        date.getUTCMonth() !==
+            month - 1 ||
+        date.getUTCDate() !==
+            day
+    ) {
+        return null;
+    }
+
+    return date;
+}
+
+
+/**
+ * Convert a stored expiration date back to
+ * YYYY-MM-DD without local timezone conversion.
+ *
+ * Example:
+ *
+ * 2026-08-26T23:59:59.999Z
+ *
+ * becomes:
+ *
+ * 2026-08-26
+ */
+function formatDateOnly(date) {
+    if (!date) {
+        return null;
+    }
+
+    const value =
+        new Date(date);
+
+    if (
+        Number.isNaN(
+            value.getTime()
+        )
+    ) {
+        return null;
+    }
+
+    const year =
+        value.getUTCFullYear();
+
+    const month =
+        String(
+            value.getUTCMonth() + 1
+        ).padStart(2, "0");
+
+    const day =
+        String(
+            value.getUTCDate()
+        ).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+}
+
 /**
  * Create signed Ready Gym installation token.
  */
