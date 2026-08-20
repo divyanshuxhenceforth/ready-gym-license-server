@@ -62,6 +62,15 @@ const licenseSchema = new mongoose.Schema(
             default: "monthly"
         },
 
+        expiryMode: {
+            type: String,
+            enum: [
+                "automatic",
+                "manual"
+            ],
+            default: "automatic"
+        },
+
         expiresAt: {
             type: Date,
             default: null
