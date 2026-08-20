@@ -494,15 +494,24 @@ exports.deactivateLicense =
 |--------------------------------------------------------------------------
 */
 
-exports.createLicense = async (
-    req,
-    res
-) => {
+
+async function createLicense(req, res) {
+
     try {
+
         const {
-            plan = "lifetime",
-            themeName = "Ready Gym"
+            plan,
+            themeName,
+            expiryMode,
+            expiresAt
         } = req.body;
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDATE PLAN
+        |--------------------------------------------------------------------------
+        */
 
         const allowedPlans = [
             "monthly",
@@ -515,122 +524,209 @@ exports.createLicense = async (
                 plan
             )
         ) {
+
             return res.status(400).json({
                 success: false,
                 message:
-                    "Invalid plan"
+                    "Invalid license plan."
             });
+
         }
+
 
         /*
         |--------------------------------------------------------------------------
-        | EXPIRATION STARTS AT ACTIVATION
+        | VALIDATE EXPIRY MODE
         |--------------------------------------------------------------------------
         */
 
-        let licenseKey;
-        let existingLicense;
+        const mode =
+            expiryMode === "manual"
+                ? "manual"
+                : "automatic";
 
-        do {
-            licenseKey =
-                generateLicenseKey();
-
-            existingLicense =
-                await License.findOne({
-                    licenseKey
-                });
-        } while (existingLicense);
 
         /*
         |--------------------------------------------------------------------------
-        | CREATE
+        | LIFETIME
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            plan ===
+            "lifetime"
+        ) {
+
+            const license =
+                await License.create({
+
+                    licenseKey:
+                        generateLicenseKey(),
+
+                    themeName:
+                        themeName ||
+                        "Ready Gym",
+
+                    plan:
+                        "lifetime",
+
+                    expiryMode:
+                        "automatic",
+
+                    expiresAt:
+                        null,
+
+                    status:
+                        "inactive"
+
+                });
+
+
+            return res.status(201).json({
+
+                success: true,
+
+                message:
+                    "Lifetime license created successfully.",
+
+                license
+
+            });
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MANUAL EXPIRY
+        |--------------------------------------------------------------------------
+        */
+
+        let manualExpiresAt =
+            null;
+
+        if (
+            mode ===
+            "manual"
+        ) {
+
+            if (!expiresAt) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Expiration date is required for manual expiry."
+                });
+
+            }
+
+            manualExpiresAt =
+                new Date(
+                    `${expiresAt}T23:59:59`
+                );
+
+            if (
+                Number.isNaN(
+                    manualExpiresAt.getTime()
+                )
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Invalid expiration date."
+                });
+
+            }
+
+            if (
+                manualExpiresAt <=
+                new Date()
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Expiration date must be in the future."
+                });
+
+            }
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | CREATE LICENSE
         |--------------------------------------------------------------------------
         */
 
         const license =
             await License.create({
-                licenseKey,
 
-                shopDomain:
-                    null,
-
-                installationId:
-                    null,
+                licenseKey:
+                    generateLicenseKey(),
 
                 themeName:
-                    themeName?.trim() ||
+                    themeName ||
                     "Ready Gym",
-
-                status:
-                    "inactive",
 
                 plan,
 
+                expiryMode:
+                    mode,
+
+                /*
+                |--------------------------------------------------------------------------
+                | Important:
+                |
+                | Automatic expiry is calculated during activation.
+                | Manual expiry is saved immediately.
+                |--------------------------------------------------------------------------
+                */
+
                 expiresAt:
-                    null,
+                    mode ===
+                    "manual"
+                        ? manualExpiresAt
+                        : null,
 
-                activatedAt:
-                    null,
+                status:
+                    "inactive"
 
-                lastCheckedAt:
-                    null,
-
-                lastSeenAt:
-                    null,
-
-                lastIntegrityCheckAt:
-                    null,
-
-                themeVersion:
-                    null,
-
-                tokenVersion:
-                    0
             });
 
+
         return res.status(201).json({
+
             success: true,
 
             message:
-                "License created successfully",
+                "License created successfully.",
 
-            license: {
-                id:
-                    license._id,
+            license
 
-                licenseKey:
-                    license.licenseKey,
-
-                themeName:
-                    license.themeName,
-
-                plan:
-                    license.plan,
-
-                status:
-                    license.status,
-
-                expiresAt:
-                    license.expiresAt,
-
-                activatedAt:
-                    license.activatedAt
-            }
         });
 
     } catch (error) {
+
         console.error(
             "Create license error:",
             error
         );
 
         return res.status(500).json({
+
             success: false,
+
             message:
-                "Failed to create license"
+                "Failed to create license."
+
         });
+
     }
-};
+
+}
 
 /*
 |--------------------------------------------------------------------------
