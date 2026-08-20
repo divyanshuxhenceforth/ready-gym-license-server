@@ -1500,15 +1500,39 @@ function formatDateTime(
 |
 */
 
-function formatDateForInput(
-    value
-) {
+/*
+|--------------------------------------------------------------------------
+| HTML DATE INPUT
+|--------------------------------------------------------------------------
+|
+| Keeps the exact calendar date.
+| Example:
+| 26 Aug 2026 -> 2026-08-26
+|
+|--------------------------------------------------------------------------
+*/
+
+function formatDateForInput(value) {
 
     if (!value) {
-
         return "";
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | If value is already YYYY-MM-DD
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        typeof value === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ) {
+
+        return value;
 
     }
+
 
     const date =
         new Date(value);
@@ -1522,6 +1546,13 @@ function formatDateForInput(
         return "";
 
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Use local date components
+    |--------------------------------------------------------------------------
+    */
 
     const year =
         date.getFullYear();
@@ -1541,6 +1572,7 @@ function formatDateForInput(
             2,
             "0"
         );
+
 
     return `${year}-${month}-${day}`;
 
