@@ -917,41 +917,118 @@ exports.activateLicense =
             | CALCULATE EXPIRATION
             |--------------------------------------------------------------------------
             */
-
-            const activationDate =
+            
+            const now =
                 new Date();
-
-            let expiresAt =
-                null;
-
+            
+            license.activatedAt =
+                now;
+            
+            license.status =
+                "active";
+            
+            
+            /*
+            |--------------------------------------------------------------------------
+            | LIFETIME
+            |--------------------------------------------------------------------------
+            */
+            
             if (
                 license.plan ===
-                "monthly"
+                "lifetime"
             ) {
-                expiresAt =
-                    new Date(
-                        activationDate
-                    );
-
-                expiresAt.setMonth(
-                    expiresAt.getMonth() +
-                        1
-                );
+            
+                license.expiresAt =
+                    null;
+            
             }
-
-            if (
-                license.plan ===
-                "yearly"
+            
+            
+            /*
+            |--------------------------------------------------------------------------
+            | MANUAL EXPIRY
+            |--------------------------------------------------------------------------
+            */
+            
+            else if (
+                license.expiryMode ===
+                "manual"
             ) {
-                expiresAt =
+            
+                if (
+                    !license.expiresAt
+                ) {
+            
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Manual expiration date is not configured for this license."
+                    });
+            
+                }
+            
+            
+                if (
                     new Date(
-                        activationDate
+                        license.expiresAt
+                    ) <= now
+                ) {
+            
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Manual expiration date has already passed."
+                    });
+            
+                }
+            
+            }
+            
+            
+            /*
+            |--------------------------------------------------------------------------
+            | AUTOMATIC EXPIRY
+            |--------------------------------------------------------------------------
+            */
+            
+            else {
+            
+                if (
+                    license.plan ===
+                    "monthly"
+                ) {
+            
+                    const expiration =
+                        new Date(now);
+            
+                    expiration.setMonth(
+                        expiration.getMonth() + 1
                     );
-
-                expiresAt.setFullYear(
-                    expiresAt.getFullYear() +
-                        1
-                );
+            
+                    license.expiresAt =
+                        expiration;
+            
+                }
+            
+            
+                else if (
+                    license.plan ===
+                    "yearly"
+                ) {
+            
+                    const expiration =
+                        new Date(now);
+            
+                    expiration.setFullYear(
+                        expiration.getFullYear() + 1
+                    );
+            
+                    license.expiresAt =
+                        expiration;
+            
+                }
+            
             }
 
             /*
